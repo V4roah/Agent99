@@ -2,13 +2,16 @@ import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from services.llm import llm_service
+
 from services.vector_store import vector_store
+from services.tag_persistence import tag_persistence_service
 from models.whatsapp import WhatsAppMessage, WhatsAppConversation
 import uuid
 
 
 class WhatsAppAnalyzer:
     def __init__(self):
+
         self.conversations: Dict[str, WhatsAppConversation] = {}
 
     def parse_whatsapp_export(self, export_text: str) -> List[WhatsAppConversation]:
@@ -55,6 +58,7 @@ class WhatsAppAnalyzer:
 
                     # Crear nueva conversación
                     conversation_id = str(uuid.uuid4())
+
                     current_conversation = WhatsAppConversation(
                         id=conversation_id,
                         customer_phone="",  # Se puede extraer del nombre si hay patrón
@@ -94,10 +98,21 @@ class WhatsAppAnalyzer:
 
         # Actualizar conversación
         conversation.category = classification.get("category", "otro")
-        conversation.tags = classification.get("tags", [])
+
+        # Generar etiquetas inteligentes usando el nuevo servicio
+        from services.smart_tagging import smart_tagging_service
+        smart_tags = smart_tagging_service.generate_smart_tags(
+            text=conversation_text,
+            category=conversation.category,
+            max_tags=8
+        )
+
+        # Extraer solo los nombres de las etiquetas para compatibilidad
+        conversation.tags = [tag["name"] for tag in smart_tags]
         conversation.sentiment = classification.get("sentiment", "neutral")
 
         # Guardar en vector store para búsquedas futuras
+
         from models.vector import VectorItem
         vector_item = VectorItem(
             id=conversation.id,
@@ -108,6 +123,8 @@ class WhatsAppAnalyzer:
                 "category": conversation.category,
                 "sentiment": conversation.sentiment,
                 "tags": conversation.tags,
+
+                "smart_tags": smart_tags,  # Incluir etiquetas inteligentes completas
                 "start_date": conversation.start_date.isoformat(),
                 "message_count": len(conversation.messages)
             }
@@ -118,12 +135,157 @@ class WhatsAppAnalyzer:
             "conversation_id": conversation.id,
             "classification": classification,
             "entities": entities,
+
             "vector_id": vector_item.id,
             "total_messages": len(conversation.messages),
             "duration_hours": (conversation.last_activity - conversation.start_date).total_seconds() / 3600,
             "customer_name": conversation.customer_name,
             "category": conversation.category,
-            "sentiment": conversation.sentiment
+
+            "sentiment": conversation.sentiment,
+            "insights": {
+                "total_messages": len(conversation.messages),
+                "duration_hours": (conversation.last_activity - conversation.start_date).total_seconds() / 3600,
+                "avg_response_time_minutes": 0,
+                "avg_message_length": sum(len(msg.content) for msg in conversation.messages) / len(conversation.messages) if conversation.messages else 0,
+                "category": conversation.category,
+                "sentiment": conversation.sentiment,
+                "tags": conversation.tags
+            }
+        }
+
+    def analyze_conversation_text(self, conversation_text: str, customer_id: str) -> Dict[str, Any]:
+        """Analiza texto de conversación directamente y crea la conversación internamente"""
+
+        # Crear una conversación temporal para análisis
+        conversation_id = str(uuid.uuid4())
+        temp_conversation = WhatsAppConversation(
+            id=conversation_id,
+            customer_phone="",
+            customer_name="Cliente",
+            messages=[],
+            start_date=datetime.now(),
+            last_activity=datetime.now()
+        )
+
+        # Clasificar conversación
+        categories = ["ventas", "soporte", "reclamo", "consulta", "otro"]
+        classification = llm_service.classify_conversation(
+            conversation_text, categories)
+
+        # Extraer entidades
+        entities = llm_service.extract_entities(conversation_text)
+
+        # Actualizar conversación
+        temp_conversation.category = classification.get("category", "otro")
+
+        # Generar etiquetas inteligentes usando el nuevo servicio
+        from services.smart_tagging import smart_tagging_service
+        print(f"🔍 DEBUG: Generando tags para texto: '{conversation_text}'")
+        print(f"🔍 DEBUG: Categoría: {temp_conversation.category}")
+
+        try:
+            smart_tags = smart_tagging_service.generate_smart_tags(
+                text=conversation_text,
+                category=temp_conversation.category,
+                max_tags=8
+            )
+            print(
+                f"🔍 DEBUG: Tags generados por smart_tagging: {len(smart_tags)} tags")
+            print(f"🔍 DEBUG: smart_tags contenido: {smart_tags}")
+        except Exception as e:
+            import traceback
+            print(f"❌ ERROR en smart_tagging_service.generate_smart_tags: {e}")
+            print(f"🔍 Traceback completo: {traceback.format_exc()}")
+            smart_tags = []
+
+        # Si no se generaron tags inteligentes, usar los del LLM
+        if not smart_tags and "tags" in classification:
+            llm_tags = classification["tags"]
+            smart_tags = [
+                {
+                    "name": tag,
+                    "category": temp_conversation.category,
+                    "type": "llm_generated",
+                    "confidence": 0.8,
+                    "source": "llm_classification",
+                    "weight": 0.8,
+                    "context": conversation_text[:100],
+                    "related_tags": []
+                }
+                for tag in llm_tags
+            ]
+            print(f"🔄 Usando tags del LLM: {llm_tags}")
+
+        # Extraer solo los nombres de las etiquetas para compatibilidad
+        temp_conversation.tags = [tag["name"] for tag in smart_tags]
+        print(
+            f"🔍 DEBUG: Tags asignados a temp_conversation: {temp_conversation.tags}")
+        print(f"🔍 DEBUG: smart_tags original: {smart_tags}")
+        temp_conversation.sentiment = classification.get(
+            "sentiment", "neutral")
+
+        # Guardar en vector store para búsquedas futuras
+        from models.vector import VectorItem
+        vector_item = VectorItem(
+            id=temp_conversation.id,
+            text=conversation_text,
+            metadata={
+                "category": temp_conversation.category,
+                "sentiment": temp_conversation.sentiment,
+                "tags": temp_conversation.tags,
+                "customer_id": customer_id
+            }
+        )
+        vector_store.add_item(vector_item)
+
+        # 🔴 COMENTADO: La persistencia de tags ahora se hace desde la ruta
+        # después de crear la conversación en la BD
+        # PERSISTIR TAGS EN LA BASE DE DATOS
+        # print(f"🔍 DEBUG: Intentando persistir {len(smart_tags)} tags...")
+        # print(f"🔍 DEBUG: conversation_id: {temp_conversation.id}")
+        # print(f"🔍 DEBUG: customer_id: {customer_id}")
+        # print(f"🔍 DEBUG: category: {temp_conversation.category}")
+
+        # try:
+        #     result = tag_persistence_service.save_tags_to_database(
+        #         tags=smart_tags,
+        #         conversation_id=temp_conversation.id,
+        #         customer_id=customer_id,
+        #         category=temp_conversation.category
+        #     )
+        #     print(f"🔍 DEBUG: Resultado de persistencia: {result}")
+        #     if result:
+        #         print(
+        #             f"✅ Tags persistidos en BD: {len(smart_tags)} tags guardados")
+        #     else:
+        #         print(f"❌ Tags NO se persistieron en BD")
+        # except Exception as e:
+        #     import traceback
+        #     print(f"❌ Error persistiendo tags en BD: {e}")
+        #     print(f"🔍 Traceback: {traceback.format_exc()}")
+
+        print(
+            f"🔍 DEBUG: Tags en insights del return: {temp_conversation.tags}")
+        return {
+            "conversation_id": temp_conversation.id,
+            "classification": classification,
+            "entities": entities,
+            "vector_id": vector_item.id,
+            "total_messages": 0,
+            "duration_hours": 0,
+            "customer_name": "Cliente",
+            "category": temp_conversation.category,
+            "sentiment": temp_conversation.sentiment,
+            "insights": {
+                "total_messages": 0,
+                "duration_hours": 0,
+                "avg_response_time_minutes": 0,
+                "avg_message_length": len(conversation_text),
+                "category": temp_conversation.category,
+                "sentiment": temp_conversation.sentiment,
+                "tags": temp_conversation.tags
+            }
         }
 
     def search_similar_conversations(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
@@ -135,16 +297,19 @@ class WhatsAppAnalyzer:
 
         # Determinar tipo de respuesta según categoría
         if conversation.category == "ventas":
+
             response_type = "sales_response"
         elif conversation.category == "reclamo":
+
             response_type = "complaint_response"
         elif conversation.category == "soporte":
+
             response_type = "support_response"
         else:
             response_type = "general_response"
 
         # Buscar conversaciones similares para contexto
-        similar = self.search_similar_conversations(context, 3)
+            similar = self.search_similar_conversations(context, 3)
 
         # Preparar contexto de conversación
         conversation_text = "\n".join([
@@ -156,6 +321,7 @@ class WhatsAppAnalyzer:
         response = llm_service.generate_response(
             conversation_text,
             context,
+
             response_type
         )
 
@@ -166,6 +332,7 @@ class WhatsAppAnalyzer:
 
         # Análisis temporal
         message_times = [msg.timestamp for msg in conversation.messages]
+
         if message_times:
             time_diffs = [
                 (message_times[i] - message_times[i-1]).total_seconds() / 60
@@ -177,20 +344,24 @@ class WhatsAppAnalyzer:
             avg_response_time = 0
 
         # Análisis de contenido
+
         total_chars = sum(len(msg.content) for msg in conversation.messages)
         avg_message_length = total_chars / \
             len(conversation.messages) if conversation.messages else 0
 
         return {
             "conversation_id": conversation.id,
+
             "insights": {
                 "total_messages": len(conversation.messages),
+
                 "duration_hours": round((conversation.last_activity - conversation.start_date).total_seconds() / 3600, 2),
                 "avg_response_time_minutes": round(avg_response_time, 2),
                 "avg_message_length": round(avg_message_length, 2),
                 "category": conversation.category,
                 "sentiment": conversation.sentiment,
                 "tags": conversation.tags
+
             }
         }
 
@@ -202,6 +373,7 @@ class WhatsAppAnalyzer:
         for conv in self.conversations.values():
             conv_data = {
                 "id": conv.id,
+
                 "customer_name": conv.customer_name,
                 "customer_phone": conv.customer_phone,
                 "start_date": conv.start_date.isoformat(),
@@ -210,6 +382,7 @@ class WhatsAppAnalyzer:
                 "category": conv.category,
                 "tags": conv.tags,
                 "sentiment": conv.sentiment,
+
                 "messages": [
                     {
                         "timestamp": msg.timestamp.isoformat(),

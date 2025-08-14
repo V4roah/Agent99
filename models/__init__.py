@@ -24,6 +24,9 @@ from .whatsapp import WhatsAppMessage, WhatsAppConversation
 from .vector import VectorItem
 from .agent_models import AgentAction, AgentMemory
 
+# Modelos de tags
+from .tag import Tag, TagUsage, TagCategory, TagCreate, TagUpdate, TagRead, TagUsageCreate, TagUsageRead
+
 __all__ = [
     # Customer models
     'CustomerProfile', 'CustomerProfileCreate', 'CustomerProfileUpdate', 'CustomerProfileRead',
@@ -53,5 +56,8 @@ __all__ = [
     'VectorItem',
 
     # Agent action models
-    'AgentAction', 'AgentMemory'
+    'AgentAction', 'AgentMemory',
+
+    # Tag models
+    'Tag', 'TagUsage', 'TagCategory', 'TagCreate', 'TagUpdate', 'TagRead', 'TagUsageCreate', 'TagUsageRead'
 ]

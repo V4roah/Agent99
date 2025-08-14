@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from . import basic, models, classification, scraping, llm, whatsapp, agents, vector
+from . import basic, models, classification, scraping, llm, whatsapp, agents, vector, tagging, super_agent
 
 # Crear router principal de la API
 api_router = APIRouter()
@@ -13,3 +13,5 @@ api_router.include_router(llm.router)
 api_router.include_router(whatsapp.router)
 api_router.include_router(agents.router)
 api_router.include_router(vector.router)
+api_router.include_router(tagging.router)
+api_router.include_router(super_agent.router)

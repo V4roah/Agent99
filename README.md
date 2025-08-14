@@ -24,11 +24,26 @@
 - **Agente de Reclamos**: Manejo empático y resolución prioritaria
 - **Aprendizaje cruzado** entre agentes para mejora continua
 
+### 🧠 **Super Agente - Cerebro Central**
+
+- **Coordinación Inteligente**: Orquesta todos los agentes especializados
+- **Aprendizaje Continuo**: Se retroalimenta de cada conversación
+- **Optimización Automática**: Mejora parámetros del sistema cada 24h
+- **Memoria Global**: Mantiene patrones de clientes y tendencias
+- **Insights de Negocio**: Genera análisis automático del rendimiento
+
 ### 🔍 **Búsqueda Vectorial**
 
 - **FAISS**: Búsquedas semánticas ultra-rápidas
 - **Embeddings locales** con Sentence Transformers
 - **Búsqueda por similitud** en conversaciones y productos
+
+### 🏷️ **Sistema de Etiquetas Inteligentes**
+
+- **Machine Learning**: Generación automática de etiquetas usando scikit-learn
+- **Análisis Semántico**: Embeddings para etiquetas contextuales
+- **Etiquetas Predefinidas**: Categorías organizadas por dominio
+- **Sugerencias Inteligentes**: Autocompletado y búsqueda de etiquetas
 
 ### 🤖 **LLM Local con Ollama**
 
@@ -160,6 +175,75 @@ GET /models/ollama
 POST /models/ollama/switch?model_name=gemma3:4b
 ```
 
+### 🏷️ **Sistema de Etiquetas Inteligentes**
+
+```http
+# Generar etiquetas inteligentes
+POST /tagging/generate
+{
+  "text": "Hola, me interesa comprar un producto",
+  "category": "ventas",
+  "max_tags": 8
+}
+
+# Sugerir etiquetas
+POST /tagging/suggest
+{
+  "partial_tag": "comp",
+  "category": "ventas"
+}
+
+# Estadísticas del sistema
+GET /tagging/statistics
+
+# Categorías disponibles
+GET /tagging/categories
+
+# Etiquetas por categoría
+GET /tagging/tags/ventas
+
+# Búsqueda de etiquetas
+GET /tagging/search?query=producto&category=ventas&max_results=10
+```
+
+### 🧠 **Super Agente - Cerebro Central**
+
+```http
+# Procesar conversación con Super Agente
+POST /super-agent/process
+{
+  "conversation_id": "conv_123",
+  "customer_id": "cust_456",
+  "category": "ventas",
+  "tags": ["producto", "precio"],
+  "content": "Hola, me interesa comprar un producto"
+}
+
+# Estado del Super Agente
+GET /super-agent/status
+
+# Insights de negocio
+GET /super-agent/insights
+
+# Memoria global del sistema
+GET /super-agent/memory
+
+# Métricas agregadas
+GET /super-agent/metrics
+
+# Ciclos de aprendizaje
+GET /super-agent/learning-cycles
+
+# Historial de optimizaciones
+GET /super-agent/optimization-history
+
+# Disparar optimización manual
+POST /super-agent/optimize
+
+# Resetear memoria (desarrollo)
+POST /super-agent/reset-memory
+```
+
 ## 📊 Casos de Uso
 
 ### 1. **Análisis de Conversaciones de WhatsApp**
@@ -255,14 +339,18 @@ Agent99/
 │   ├── llm.py            # Generación y análisis con LLM
 │   ├── whatsapp.py        # Análisis de WhatsApp
 │   ├── agents.py         # Sistema de agentes
-│   └── vector.py         # Búsqueda vectorial
+│   ├── vector.py         # Búsqueda vectorial
+│   ├── tagging.py        # Sistema de etiquetas inteligentes
+│   └── super_agent.py    # Super Agente - Cerebro central
 ├── services/              # Lógica de negocio
 │   ├── scraping.py        # Scraping con Playwright
 │   ├── classify.py        # Clasificación con scikit-learn
 │   ├── vector_store.py    # Búsqueda vectorial FAISS
 │   ├── llm.py            # Integración con Ollama
 │   ├── whatsapp_analyzer.py # Análisis de conversaciones
-│   └── agents.py         # Sistema de agentes especializados
+│   ├── agents.py         # Sistema de agentes especializados
+│   ├── smart_tagging.py  # Sistema de etiquetas inteligentes
+│   └── super_agent.py    # Super Agente - Cerebro central
 ├── models/                # Modelos entrenados
 ├── data/                  # Datos de entrenamiento
 └── venv/                  # Entorno virtual

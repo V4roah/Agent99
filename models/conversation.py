@@ -11,6 +11,7 @@ from typing import Optional, List
 from datetime import datetime
 from uuid import UUID, uuid4
 import pytz
+import json
 
 # Configuración de zona horaria
 COLOMBIA_TZ = pytz.timezone("America/Bogota")
@@ -18,19 +19,40 @@ COLOMBIA_TZ = pytz.timezone("America/Bogota")
 
 class ConversationBase(SQLModel):
     """Clase base para conversaciones"""
-    conversation_id: str = Field(description="ID único de la conversación")
-    customer_name: str = Field(description="Nombre del cliente")
-    phone_number: str = Field(description="Número de teléfono del cliente")
-    conversation_text: str = Field(
-        description="Texto completo de la conversación")
-    message_count: int = Field(description="Número total de mensajes")
-    conversation_date: datetime = Field(description="Fecha de la conversación")
-    intent_classified: Optional[str] = Field(
-        default=None, description="Intención clasificada")
-    sentiment_score: Optional[float] = Field(
-        default=None, description="Puntuación de sentimiento")
-    priority_level: Optional[str] = Field(
-        default=None, description="Nivel de prioridad")
+    category: Optional[str] = Field(
+        default=None, description="Categoría de la conversación")
+    tags_json: Optional[str] = Field(
+        default=None, description="Tags generados por ML (JSON)")
+    sentiment: Optional[str] = Field(
+        default=None, description="Sentimiento de la conversación")
+    status: str = Field(
+        default="active", description="Estado de la conversación")
+    message_count: int = Field(
+        default=0, description="Número total de mensajes")
+    duration_hours: Optional[float] = Field(
+        default=None, description="Duración en horas")
+    avg_response_time_minutes: Optional[float] = Field(
+        default=None, description="Tiempo promedio de respuesta")
+    avg_message_length: Optional[float] = Field(
+        default=None, description="Longitud promedio de mensajes")
+
+    @property
+    def tags(self) -> List[str]:
+        """Obtiene la lista de tags desde JSON"""
+        if self.tags_json:
+            try:
+                return json.loads(self.tags_json)
+            except:
+                return []
+        return []
+
+    @tags.setter
+    def tags(self, value: List[str]):
+        """Establece la lista de tags como JSON"""
+        if value:
+            self.tags_json = json.dumps(value)
+        else:
+            self.tags_json = None
 
 
 class Conversation(ConversationBase, table=True):
@@ -57,31 +79,52 @@ class Conversation(ConversationBase, table=True):
         default_factory=lambda: datetime.now(COLOMBIA_TZ))
 
     def __repr__(self):
-        return f"<Conversation(id={self.id}, customer={self.customer_name})>"
+        return f"<Conversation(id={self.id}, customer_profile_id={self.customer_profile_id})>"
 
 
-class ConversationCreate(ConversationBase):
+class ConversationCreate(SQLModel):
     """Modelo para crear conversaciones"""
+    id: Optional[UUID] = None
+    customer_id: str
     customer_profile_id: Optional[UUID] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    sentiment: Optional[str] = None
+    status: str = "active"
+    message_count: int = 0
+    duration_hours: Optional[float] = None
+    avg_response_time_minutes: Optional[float] = None
+    avg_message_length: Optional[float] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class ConversationUpdate(SQLModel):
     """Modelo para actualizar conversaciones"""
-    conversation_id: Optional[str] = Field(default=None)
-    customer_name: Optional[str] = Field(default=None)
-    phone_number: Optional[str] = Field(default=None)
-    conversation_text: Optional[str] = Field(default=None)
-    message_count: Optional[int] = Field(default=None)
-    conversation_date: Optional[datetime] = Field(default=None)
-    intent_classified: Optional[str] = Field(default=None)
-    sentiment_score: Optional[float] = Field(default=None)
-    priority_level: Optional[str] = Field(default=None)
+    customer_id: Optional[str] = Field(default=None)
     customer_profile_id: Optional[UUID] = Field(default=None)
+    category: Optional[str] = Field(default=None)
+    tags: Optional[List[str]] = Field(default=None)
+    sentiment: Optional[str] = Field(default=None)
+    status: Optional[str] = Field(default=None)
+    message_count: Optional[int] = Field(default=None)
+    duration_hours: Optional[float] = Field(default=None)
+    avg_response_time_minutes: Optional[float] = Field(default=None)
+    avg_message_length: Optional[float] = Field(default=None)
 
 
-class ConversationRead(ConversationBase):
+class ConversationRead(SQLModel):
     """Modelo para leer conversaciones"""
     id: UUID
+    customer_id: str
     customer_profile_id: Optional[UUID]
+    category: Optional[str]
+    tags: List[str]
+    sentiment: Optional[str]
+    status: str
+    message_count: int
+    duration_hours: Optional[float]
+    avg_response_time_minutes: Optional[float]
+    avg_message_length: Optional[float]
     created_at: datetime
     updated_at: datetime

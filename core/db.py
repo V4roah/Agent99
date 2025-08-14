@@ -82,7 +82,8 @@ def create_all_tables():
         # Importar todos los modelos para que SQLModel los registre
         from models import (
             CustomerProfile, ProductInventory, Conversation,
-            ConversationIntent, AgentLearning, AgentMetrics, WorkflowExecution
+            ConversationIntent, AgentLearning, AgentMetrics, WorkflowExecution,
+            Tag, TagUsage, TagCategory
         )
 
         # Crear todas las tablas
