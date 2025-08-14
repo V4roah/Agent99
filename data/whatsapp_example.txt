@@ -1,0 +1,69 @@
+[01/01/2024, 10:00:00] María: Hola, ¿tienen leggins en talla M?
+[01/01/2024, 10:01:15] Tienda: ¡Hola María! Sí tenemos leggins en talla M. ¿Qué color te gustaría?
+[01/01/2024, 10:02:30] María: Me gustaría en negro. ¿Cuánto cuestan?
+[01/01/2024, 10:03:45] Tienda: Los leggins negros en talla M están en $25. ¿Te gustaría que te reserve uno?
+[01/01/2024, 10:05:00] María: Perfecto, me lo reservas. ¿Puedo pagar con tarjeta?
+[01/01/2024, 10:06:15] Tienda: ¡Por supuesto! Aceptamos todas las tarjetas. Te lo reservo para hoy.
+
+[02/01/2024, 14:30:00] Carlos: Hola, no me llegó mi pedido de ayer
+[02/01/2024, 14:31:20] Tienda: Hola Carlos, lamento mucho eso. ¿Podrías darme tu número de pedido?
+[02/01/2024, 14:32:45] Carlos: Sí, es el #12345
+[02/01/2024, 14:34:10] Tienda: Déjame verificar el estado de tu pedido #12345...
+[02/01/2024, 14:35:30] Tienda: Veo que tu pedido salió ayer a las 3 PM. ¿Podrías confirmar tu dirección de entrega?
+[02/01/2024, 14:36:45] Carlos: Mi dirección es Calle Principal 123, Colonia Centro
+[02/01/2024, 14:38:00] Tienda: Perfecto, veo que la dirección está correcta. Te voy a contactar con el repartidor para ver qué pasó.
+
+[03/01/2024, 09:15:00] Ana: Hola, ¿cómo se lava la ropa deportiva?
+[03/01/2024, 09:16:30] Tienda: ¡Hola Ana! Para la ropa deportiva te recomiendo:
+- Lavar en agua fría o tibia
+- Usar detergente suave
+- No usar suavizante
+- Secar al aire libre
+¿Te gustaría que te envíe una guía completa por email?
+
+[04/01/2024, 16:45:00] Luis: Hola, quiero comprar 5 camisetas deportivas
+[04/01/2024, 16:46:15] Tienda: ¡Excelente elección Luis! Tenemos varias opciones:
+- Camisetas básicas: $15 cada una
+- Camisetas con tecnología de secado rápido: $25 cada una
+- Camisetas premium con protección UV: $35 cada una
+¿Cuál te interesa más?
+
+[05/01/2024, 11:20:00] Sofía: Hola, mi pedido llegó con un defecto
+[05/01/2024, 11:21:30] Tienda: Hola Sofía, lamento mucho eso. ¿Podrías describir el defecto y enviarme una foto?
+[05/01/2024, 11:22:45] Sofía: Sí, la costura está suelta en el pantalón
+[05/01/2024, 11:24:00] Tienda: Entiendo perfectamente. Te voy a enviar un pantalón nuevo sin costo adicional. ¿Te parece bien que lo envíe mañana?
+[05/01/2024, 11:25:15] Sofía: Perfecto, muchas gracias por la atención
+[05/01/2024, 11:26:30] Tienda: Es un placer ayudarte. Disculpa las molestias.
+
+[06/01/2024, 13:10:00] Roberto: ¿Tienen tallas grandes? Soy talla XXL
+[06/01/2024, 13:11:20] Tienda: ¡Hola Roberto! Sí tenemos tallas grandes. Nuestras tallas van hasta 3XL. ¿Qué producto te interesa?
+[06/01/2024, 13:12:35] Roberto: Me gustaría unos shorts deportivos
+[06/01/2024, 13:13:50] Tienda: Perfecto, tenemos shorts deportivos en talla XXL en varios colores. ¿Te gustaría que te envíe fotos de los modelos disponibles?
+
+[07/01/2024, 15:30:00] Carmen: Hola, ¿hacen envíos a otras ciudades?
+[07/01/2024, 15:31:15] Tienda: ¡Hola Carmen! Sí hacemos envíos a toda la república. El costo varía según la ciudad:
+- Envío local: $5
+- Envío nacional: $15-25
+- Tiempo de entrega: 2-5 días hábiles
+¿A qué ciudad te gustaría que enviemos?
+
+[08/01/2024, 10:45:00] Diego: Hola, ¿tienen descuentos para compras grandes?
+[08/01/2024, 10:46:20] Tienda: ¡Hola Diego! Sí tenemos descuentos por volumen:
+- 5-10 productos: 10% de descuento
+- 11-20 productos: 15% de descuento
+- Más de 20 productos: 20% de descuento
+¿Cuántos productos planeas comprar?
+
+[09/01/2024, 12:00:00] Laura: Hola, ¿pueden personalizar la ropa con logos?
+[09/01/2024, 12:01:30] Tienda: ¡Hola Laura! Sí ofrecemos personalización con logos. Tenemos varias opciones:
+- Bordado: $5 por prenda
+- Serigrafía: $3 por prenda
+- Sublimación: $8 por prenda
+¿Te gustaría que te envíe ejemplos de trabajos anteriores?
+
+[10/01/2024, 17:15:00] Miguel: Hola, ¿tienen garantía en sus productos?
+[10/01/2024, 17:16:30] Tienda: ¡Hola Miguel! Sí, todos nuestros productos tienen garantía:
+- Ropa deportiva: 6 meses
+- Zapatos deportivos: 1 año
+- Accesorios: 3 meses
+¿Te gustaría que te explique más detalles sobre la garantía?
