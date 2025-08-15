@@ -280,3 +280,112 @@ async def get_conversation_tags(conversation_id: str):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error getting conversation tags: {str(e)}")
+
+
+@router.get("/learning-status")
+async def get_learning_status():
+    """Obtiene el estado del sistema de aprendizaje"""
+    try:
+        from services.super_agent import super_agent
+        from services.agents import available_agents
+
+        # Estado del Super Agente
+        super_agent_status = super_agent.get_system_status()
+
+        # Estado de agentes individuales
+        agents_status = {}
+        for agent_type, agent in available_agents.items():
+            agents_status[agent_type] = agent.get_learning_summary()
+
+        # Estado general del aprendizaje
+        learning_status = {
+            "super_agent": super_agent_status,
+            "individual_agents": agents_status,
+            "total_learning_agents": len(available_agents),
+            "system_learning_active": True,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        return {
+            "success": True,
+            "learning_status": learning_status
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+@router.post("/force-learning")
+async def force_system_learning():
+    """Fuerza un ciclo de aprendizaje del sistema"""
+    try:
+        from services.super_agent import super_agent
+
+        # Forzar ciclo de aprendizaje
+        learning_result = super_agent._run_optimization_cycle()
+
+        return {
+            "success": True,
+            "message": "Ciclo de aprendizaje forzado exitosamente",
+            "learning_result": learning_result,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+@router.get("/super-agent-learnings")
+async def get_super_agent_learnings():
+    """Obtiene todos los aprendizajes del Super Agente desde la base de datos"""
+    try:
+        from core.db import get_session
+        from models.agent import AgentLearning as AgentLearningModel
+        from sqlmodel import select
+
+        with get_session() as session:
+            # Buscar todos los aprendizajes del Super Agente
+            learnings = session.exec(
+                select(AgentLearningModel)
+                .where(AgentLearningModel.agent_type == "super_agent")
+                .order_by(AgentLearningModel.created_at.desc())
+            ).all()
+
+            learning_data = []
+            for learning in learnings:
+                learning_data.append({
+                    "id": learning.id,
+                    "agent_type": learning.agent_type,
+                    "learning_type": learning.learning_type,
+                    "content": learning.content,
+                    "confidence_score": learning.confidence_score,
+                    "category": learning.category,
+                    "metadata": learning.metadata,
+                    "created_at": learning.created_at.isoformat() if learning.created_at else None
+                })
+
+            return {
+                "success": True,
+                "total_learnings": len(learning_data),
+                "learnings": learning_data,
+                "timestamp": datetime.now().isoformat()
+            }
+
+    except Exception as e:
+        import traceback
+        print(f"❌ Error obteniendo aprendizajes del Super Agente: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }

@@ -85,6 +85,9 @@ def create_all_tables():
             ConversationIntent, AgentLearning, AgentMetrics, WorkflowExecution,
             Tag, TagUsage, TagCategory
         )
+        
+        # 🆕 Importar el modelo del Super Agente
+        from models.agent import SuperAgentModel
 
         # Crear todas las tablas
         SQLModel.metadata.create_all(engine)

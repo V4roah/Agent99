@@ -1,416 +1,550 @@
+"""
+Servicio de Gestión de Agentes con Sistema de Aprendizaje Individual
+"""
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-import json
-from services.llm import llm_service
-from services.vector_store import vector_store
-from services.whatsapp_analyzer import WhatsAppConversation
-from models.agent_models import AgentAction, AgentMemory
-from models.whatsapp import WhatsAppMessage
+import logging
+from models.agent import AgentLearning, AgentLearningCreate
+from core.db import get_session
+from sqlmodel import Session, select
+
+logger = logging.getLogger(__name__)
 
 
 class BaseAgent:
-    def __init__(self, agent_id: str, agent_type: str):
-        self.agent_id = agent_id
+    """Clase base para todos los agentes con capacidades de aprendizaje"""
+    
+    def __init__(self, agent_type: str, name: str):
         self.agent_type = agent_type
-        self.memory: Dict[str, AgentMemory] = {}
-        self.actions: List[AgentAction] = []
-        self.performance_metrics = {
-            "total_actions": 0,
-            "successful_actions": 0,
-            "average_confidence": 0.0
+        self.name = name
+        self.learning_history = []
+        self.performance_metrics = {}
+        self.specialization_areas = []
+        
+        logger.info(f"🤖 Agente {self.name} ({self.agent_type}) inicializado con capacidades de aprendizaje")
+    
+    def learn_from_conversation(self, conversation: Dict[str, Any], outcome: Dict[str, Any]) -> Dict[str, Any]:
+        """Aprende de una conversación específica"""
+        try:
+            learning_outcome = {
+                "agent_type": self.agent_type,
+                "conversation_id": conversation.get("id"),
+                "learning_timestamp": datetime.now().isoformat(),
+                "patterns_identified": [],
+                "improvements_suggested": [],
+                "confidence_adjustments": [],
+                "specialization_updates": []
+            }
+            
+            # 1. Identificar patrones en la conversación
+            patterns = self._identify_conversation_patterns(conversation, outcome)
+            learning_outcome["patterns_identified"] = patterns
+            
+            # 2. Generar sugerencias de mejora
+            improvements = self._generate_improvement_suggestions(conversation, outcome, patterns)
+            learning_outcome["improvements_suggested"] = improvements
+            
+            # 3. Ajustar niveles de confianza
+            confidence_adjustments = self._adjust_confidence_levels(outcome, patterns)
+            learning_outcome["confidence_adjustments"] = confidence_adjustments
+            
+            # 4. Actualizar áreas de especialización
+            specialization_updates = self._update_specialization_areas(conversation, outcome)
+            learning_outcome["specialization_updates"] = specialization_updates
+            
+            # 5. Guardar aprendizaje en BD
+            self._save_learning_to_db(learning_outcome)
+            
+            # 6. Actualizar memoria local del agente
+            self._update_local_memory(learning_outcome)
+            
+            logger.info(f"🧠 Agente {self.name} aprendió de conversación {conversation.get('id')}")
+            return learning_outcome
+            
+        except Exception as e:
+            logger.error(f"❌ Error en aprendizaje del agente {self.name}: {e}")
+            return {"error": str(e)}
+    
+    def _identify_conversation_patterns(self, conversation: Dict[str, Any], outcome: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Identifica patrones en la conversación para aprendizaje"""
+        patterns = []
+        
+        try:
+            # Patrón 1: Categoría de conversación
+            if conversation.get("category"):
+                patterns.append({
+                    "type": "category_pattern",
+                    "pattern": f"Conversación de categoría: {conversation['category']}",
+                    "strength": 0.8,
+                    "frequency": 1
+                })
+            
+            # Patrón 2: Tags utilizados
+            if conversation.get("tags"):
+                for tag in conversation["tags"][:3]:  # Top 3 tags
+                    patterns.append({
+                        "type": "tag_pattern",
+                        "pattern": f"Tag utilizado: {tag}",
+                        "strength": 0.7,
+                        "frequency": 1
+                    })
+            
+            # Patrón 3: Sentimiento del cliente
+            if conversation.get("sentiment"):
+                patterns.append({
+                    "type": "sentiment_pattern",
+                    "pattern": f"Sentimiento del cliente: {conversation['sentiment']}",
+                    "strength": 0.6,
+                    "frequency": 1
+                })
+            
+            # Patrón 4: Resultado del procesamiento
+            if outcome.get("success_rate"):
+                success_pattern = "exitoso" if outcome["success_rate"] > 0.7 else "problemático"
+                patterns.append({
+                    "type": "outcome_pattern",
+                    "pattern": f"Conversación {success_pattern}",
+                    "strength": 0.9,
+                    "frequency": 1
+                })
+            
+        except Exception as e:
+            logger.error(f"❌ Error identificando patrones: {e}")
+        
+        return patterns
+    
+    def _generate_improvement_suggestions(self, conversation: Dict[str, Any], 
+                                        outcome: Dict[str, Any], 
+                                        patterns: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Genera sugerencias de mejora basándose en patrones identificados"""
+        suggestions = []
+        
+        try:
+            # Sugerencia 1: Basada en éxito de la conversación
+            if outcome.get("success_rate", 0) < 0.7:
+                suggestions.append({
+                    "type": "performance_improvement",
+                    "suggestion": "Mejorar tiempo de respuesta para conversaciones problemáticas",
+                    "priority": "high",
+                    "confidence": 0.8
+                })
+            
+            # Sugerencia 2: Basada en categoría
+            if conversation.get("category") == "soporte":
+                suggestions.append({
+                    "type": "specialization_improvement",
+                    "suggestion": "Profundizar en conocimientos técnicos de soporte",
+                    "priority": "medium",
+                    "confidence": 0.7
+                })
+            
+            # Sugerencia 3: Basada en tags
+            if conversation.get("tags") and "error" in conversation["tags"]:
+                suggestions.append({
+                    "type": "knowledge_improvement",
+                    "suggestion": "Ampliar base de conocimientos sobre resolución de errores",
+                    "priority": "high",
+                    "confidence": 0.9
+                })
+            
+        except Exception as e:
+            logger.error(f"❌ Error generando sugerencias: {e}")
+        
+        return suggestions
+    
+    def _adjust_confidence_levels(self, outcome: Dict[str, Any], patterns: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Ajusta niveles de confianza basándose en resultados"""
+        adjustments = []
+        
+        try:
+            # Ajuste 1: Basado en éxito de la conversación
+            success_rate = outcome.get("success_rate", 0.5)
+            if success_rate > 0.8:
+                adjustments.append({
+                    "type": "confidence_increase",
+                    "reason": "Conversación exitosa",
+                    "adjustment": 0.1,
+                    "new_confidence": min(1.0, 0.8 + 0.1)
+                })
+            elif success_rate < 0.5:
+                adjustments.append({
+                    "type": "confidence_decrease",
+                    "reason": "Conversación problemática",
+                    "adjustment": -0.1,
+                    "new_confidence": max(0.1, 0.8 - 0.1)
+                })
+            
+        except Exception as e:
+            logger.error(f"❌ Error ajustando niveles de confianza: {e}")
+        
+        return adjustments
+    
+    def _update_specialization_areas(self, conversation: Dict[str, Any], outcome: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Actualiza áreas de especialización del agente"""
+        updates = []
+        
+        try:
+            # Actualización 1: Basada en categoría exitosa
+            if outcome.get("success_rate", 0) > 0.8:
+                category = conversation.get("category")
+                if category and category not in self.specialization_areas:
+                    self.specialization_areas.append(category)
+                    updates.append({
+                        "type": "specialization_added",
+                        "area": category,
+                        "reason": "Alto éxito en conversaciones de esta categoría",
+                        "confidence": 0.8
+                    })
+            
+            # Actualización 2: Basada en tags exitosos
+            if conversation.get("tags") and outcome.get("success_rate", 0) > 0.7:
+                for tag in conversation["tags"][:2]:  # Top 2 tags
+                    if tag not in self.specialization_areas:
+                        self.specialization_areas.append(tag)
+                        updates.append({
+                            "type": "specialization_added",
+                            "area": tag,
+                            "reason": "Éxito en conversaciones con este tag",
+                            "confidence": 0.7
+                        })
+            
+        except Exception as e:
+            logger.error(f"❌ Error actualizando áreas de especialización: {e}")
+        
+        return updates
+    
+    def _save_learning_to_db(self, learning_outcome: Dict[str, Any]):
+        """Guarda el aprendizaje del agente en la base de datos"""
+        try:
+            with get_session() as session:
+                # Guardar patrón principal de aprendizaje
+                learning = AgentLearning(
+                    agent_type=self.agent_type,
+                    learning_type="agent_learning",
+                    content=f"Agente {self.name} aprendió de conversación {learning_outcome.get('conversation_id')}",
+                    confidence_score=0.8,
+                    category="agent_learning",
+                    metadata={
+                        "patterns_identified": len(learning_outcome.get("patterns_identified", [])),
+                        "improvements_suggested": len(learning_outcome.get("improvements_suggested", [])),
+                        "confidence_adjustments": len(learning_outcome.get("confidence_adjustments", [])),
+                        "specialization_updates": len(learning_outcome.get("specialization_updates", []))
+                    }
+                )
+                
+                session.add(learning)
+                session.commit()
+                
+                logger.info(f"💾 Aprendizaje del agente {self.name} guardado en BD")
+                
+        except Exception as e:
+            logger.error(f"❌ Error guardando aprendizaje en BD: {e}")
+    
+    def _update_local_memory(self, learning_outcome: Dict[str, Any]):
+        """Actualiza la memoria local del agente"""
+        try:
+            # Agregar a historial de aprendizaje
+            self.learning_history.append({
+                "timestamp": datetime.now().isoformat(),
+                "conversation_id": learning_outcome.get("conversation_id"),
+                "patterns": learning_outcome.get("patterns_identified", []),
+                "improvements": learning_outcome.get("improvements_suggested", []),
+                "confidence_adjustments": learning_outcome.get("confidence_adjustments", [])
+            })
+            
+            # Mantener solo los últimos 100 aprendizajes
+            if len(self.learning_history) > 100:
+                self.learning_history = self.learning_history[-100:]
+            
+            # Actualizar métricas de rendimiento
+            self._update_performance_metrics(learning_outcome)
+            
+        except Exception as e:
+            logger.error(f"❌ Error actualizando memoria local: {e}")
+    
+    def _update_performance_metrics(self, learning_outcome: Dict[str, Any]):
+        """Actualiza métricas de rendimiento del agente"""
+        try:
+            conversation_id = learning_outcome.get("conversation_id")
+            if conversation_id:
+                # Métrica: Tasa de aprendizaje
+                if "learning_rate" not in self.performance_metrics:
+                    self.performance_metrics["learning_rate"] = 0.0
+                
+                # Métrica: Patrones identificados
+                if "patterns_identified" not in self.performance_metrics:
+                    self.performance_metrics["patterns_identified"] = 0
+                self.performance_metrics["patterns_identified"] += len(learning_outcome.get("patterns_identified", []))
+                
+                # Métrica: Mejoras sugeridas
+                if "improvements_suggested" not in self.performance_metrics:
+                    self.performance_metrics["improvements_suggested"] = 0
+                self.performance_metrics["improvements_suggested"] += len(learning_outcome.get("improvements_suggested", []))
+                
+        except Exception as e:
+            logger.error(f"❌ Error actualizando métricas de rendimiento: {e}")
+    
+    def get_learning_summary(self) -> Dict[str, Any]:
+        """Obtiene un resumen del aprendizaje del agente"""
+        return {
+            "agent_type": self.agent_type,
+            "name": self.name,
+            "total_learnings": len(self.learning_history),
+            "specialization_areas": self.specialization_areas,
+            "performance_metrics": self.performance_metrics,
+            "recent_learnings": self.learning_history[-5:] if self.learning_history else [],
+            "learning_timestamp": datetime.now().isoformat()
         }
-
-    def process(self, WhatsAppConversation: WhatsAppConversation, context: str = "") -> Dict[str, Any]:
-        """Procesa una conversación y retorna la acción recomendada"""
-        raise NotImplementedError
-
-    def learn(self, action: AgentAction, feedback: Dict[str, Any]):
-        """Aprende de las acciones y feedback"""
-        self.actions.append(action)
-        self.performance_metrics["total_actions"] += 1
-
-        if feedback.get("success", False):
-            self.performance_metrics["successful_actions"] += 1
-
-        # Actualizar métricas
-        total_confidence = sum(a.confidence for a in self.actions)
-        self.performance_metrics["average_confidence"] = total_confidence / \
-            len(self.actions)
-
-        # Actualizar memoria
-        conversation_id = action.input_data.get("conversation_id")
-        if conversation_id and conversation_id not in self.memory:
-            self.memory[conversation_id] = AgentMemory(
-                agent_id=self.agent_id,
-                conversation_id=conversation_id,
-                key_insights=[],
-                successful_patterns=[],
-                failed_patterns=[],
-                customer_preferences={},
-                last_updated=datetime.now()
-            )
-
-        if conversation_id:
-            memory = self.memory[conversation_id]
-            memory.last_updated = datetime.now()
-
-            if feedback.get("success", False):
-                memory.successful_patterns.append(str(action.input_data))
-            else:
-                memory.failed_patterns.append(str(action.input_data))
-
-    def get_context(self, WhatsAppConversation: WhatsAppConversation) -> str:
-        """Obtiene contexto relevante para la conversación"""
-        # Buscar conversaciones similares
-        WhatsAppConversation_text = "\n".join(
-            [msg.content for msg in WhatsAppConversation.messages])
-        similar = vector_store.search(WhatsAppConversation_text, 3)
-
-        context = f"Conversación actual: {WhatsAppConversation.customer_name}\n"
-        context += f"Categoría: {WhatsAppConversation.category}\n"
-        context += f"Sentimiento: {WhatsAppConversation.sentiment}\n"
-
-        if similar:
-            context += "\nConversaciones similares:\n"
-            for conv in similar:
-                context += f"- {conv['metadata']['customer_name']}: {conv['text'][:100]}...\n"
-
-        return context
 
 
 class SalesAgent(BaseAgent):
+    """Agente especializado en ventas con aprendizaje específico"""
+    
     def __init__(self):
-        super().__init__("sales_agent", "ventas")
-
-    def process(self, WhatsAppConversation: WhatsAppConversation, context: str = "") -> Dict[str, Any]:
-        """Procesa conversaciones de ventas"""
-
-        # Obtener contexto
-        full_context = context + "\n" + self.get_context(WhatsAppConversation)
-
-        # Analizar intención de compra
-        purchase_intent = self._analyze_purchase_intent(
-            WhatsAppConversation, full_context)
-
-        # Generar respuesta de ventas
-        response = llm_service.generate_response(
-            str(WhatsAppConversation.messages[-1].content),
-            full_context,
-            "ventas"
-        )
-
-        # Determinar siguiente acción
-        next_action = self._determine_next_action(
-            purchase_intent, WhatsAppConversation)
-
-        action = AgentAction(
-            agent_id=self.agent_id,
-            action_type="sales_process",
-            timestamp=datetime.now(),
-            input_data={
-                "WhatsAppConversation_id": WhatsAppConversation.id,
-                "customer_name": WhatsAppConversation.customer_name,
-                "last_message": str(WhatsAppConversation.messages[-1].content)
-            },
-            output_data={
-                "purchase_intent": purchase_intent,
-                "response": response,
-                "next_action": next_action
-            },
-            confidence=purchase_intent.get("confidence", 0.5)
-        )
-
-        self.learn(action, {"success": True})
-
-        return {
-            "agent_id": self.agent_id,
-            "action_type": "sales_process",
-            "response": response,
-            "purchase_intent": purchase_intent,
-            "next_action": next_action,
-            "confidence": purchase_intent.get("confidence", 0.5)
+        super().__init__("sales", "Agente de Ventas")
+        self.specialization_areas = ["ventas", "productos", "cotizaciones", "objeciones"]
+        self.sales_metrics = {
+            "conversion_rate": 0.0,
+            "average_deal_size": 0.0,
+            "sales_cycle_length": 0.0
         }
-
-    def _analyze_purchase_intent(self, WhatsAppConversation: WhatsAppConversation, context: str) -> Dict[str, Any]:
-        """Analiza la intención de compra del cliente"""
-        WhatsAppConversation_text = "\n".join(
-            [msg.content for msg in WhatsAppConversation.messages])
-
-        analysis = llm_service.analyze_intent(
-            WhatsAppConversation_text,
-            context,
-            "purchase_intent"
-        )
-
-        return {
-            "intent": analysis.get("intent", "unknown"),
-            "confidence": analysis.get("confidence", 0.5),
-            "urgency": analysis.get("urgency", "low"),
-            "budget_indication": analysis.get("budget", "unknown"),
-            "product_interest": analysis.get("products", [])
-        }
-
-    def _determine_next_action(self, purchase_intent: Dict[str, Any], WhatsAppConversation: WhatsAppConversation) -> str:
-        """Determina la siguiente acción basada en la intención de compra"""
-        intent = purchase_intent.get("intent", "unknown")
-        urgency = purchase_intent.get("urgency", "low")
-
-        if intent == "high_intent":
-            if urgency == "high":
-                return "immediate_quote"
-            else:
-                return "detailed_presentation"
-        elif intent == "medium_intent":
-            return "follow_up"
-        elif intent == "low_intent":
-            return "nurture"
+    
+    def learn_from_sales_conversation(self, conversation: Dict[str, Any], outcome: Dict[str, Any]):
+        """Aprende específicamente de conversaciones de ventas"""
+        # Llamar al método base de aprendizaje
+        learning_outcome = self.learn_from_conversation(conversation, outcome)
+        
+        # Aprendizaje específico de ventas
+        if outcome.get("conversion", False):
+            self._learn_from_successful_sale(conversation, outcome)
         else:
-            return "qualify"
+            self._learn_from_failed_sale(conversation, outcome)
+        
+        return learning_outcome
+    
+    def _learn_from_successful_sale(self, conversation: Dict[str, Any], outcome: Dict[str, Any]):
+        """Aprende de ventas exitosas"""
+        # Implementar lógica específica de aprendizaje de ventas exitosas
+        pass
+    
+    def _learn_from_failed_sale(self, conversation: Dict[str, Any], outcome: Dict[str, Any]):
+        """Aprende de ventas fallidas"""
+        # Implementar lógica específica de aprendizaje de ventas fallidas
+        pass
 
 
 class SupportAgent(BaseAgent):
+    """Agente especializado en soporte técnico con aprendizaje específico"""
+    
     def __init__(self):
-        super().__init__("support_agent", "soporte")
-
-    def process(self, WhatsAppConversation: WhatsAppConversation, context: str = "") -> Dict[str, Any]:
-        """Procesa conversaciones de soporte"""
-
-        # Obtener contexto
-        full_context = context + "\n" + self.get_context(WhatsAppConversation)
-
-        # Analizar el problema
-        problem_analysis = self._analyze_problem(
-            WhatsAppConversation, full_context)
-
-        # Generar respuesta de soporte
-        response = llm_service.generate_response(
-            str(WhatsAppConversation.messages[-1].content),
-            full_context,
-            "soporte"
-        )
-
-        # Determinar solución
-        solution = self._determine_solution(
-            problem_analysis, WhatsAppConversation)
-
-        action = AgentAction(
-            agent_id=self.agent_id,
-            action_type="support_process",
-            timestamp=datetime.now(),
-            input_data={
-                "WhatsAppConversation_id": WhatsAppConversation.id,
-                "customer_name": WhatsAppConversation.customer_name,
-                "last_message": str(WhatsAppConversation.messages[-1].content)
-            },
-            output_data={
-                "problem_analysis": problem_analysis,
-                "response": response,
-                "solution": solution
-            },
-            confidence=problem_analysis.get("confidence", 0.5)
-        )
-
-        self.learn(action, {"success": True})
-
-        return {
-            "agent_id": self.agent_id,
-            "action_type": "support_process",
-            "response": response,
-            "problem_analysis": problem_analysis,
-            "solution": solution,
-            "confidence": problem_analysis.get("confidence", 0.5)
+        super().__init__("support", "Agente de Soporte")
+        self.specialization_areas = ["soporte", "técnico", "problemas", "soluciones"]
+        self.support_metrics = {
+            "resolution_time": 0.0,
+            "first_call_resolution": 0.0,
+            "customer_satisfaction": 0.0
         }
-
-    def _analyze_problem(self, WhatsAppConversation: WhatsAppConversation, context: str) -> Dict[str, Any]:
-        """Analiza el problema del cliente"""
-        WhatsAppConversation_text = "\n".join(
-            [msg.content for msg in WhatsAppConversation.messages])
-
-        analysis = llm_service.analyze_intent(
-            WhatsAppConversation_text,
-            context,
-            "problem_analysis"
-        )
-
-        return {
-            "problem_type": analysis.get("problem_type", "unknown"),
-            "severity": analysis.get("severity", "low"),
-            "confidence": analysis.get("confidence", 0.5),
-            "affected_products": analysis.get("affected_products", []),
-            "customer_satisfaction": analysis.get("satisfaction", "neutral")
-        }
-
-    def _determine_solution(self, problem_analysis: Dict[str, Any], WhatsAppConversation: WhatsAppConversation) -> str:
-        """Determina la solución basada en el análisis del problema"""
-        problem_type = problem_analysis.get("problem_type", "unknown")
-        severity = problem_analysis.get("severity", "low")
-
-        if severity == "high":
-            return "escalate"
-        elif problem_type == "technical":
-            return "technical_support"
-        elif problem_type == "billing":
-            return "billing_support"
+    
+    def learn_from_support_conversation(self, conversation: Dict[str, Any], outcome: Dict[str, Any]):
+        """Aprende específicamente de conversaciones de soporte"""
+        # Llamar al método base de aprendizaje
+        learning_outcome = self.learn_from_conversation(conversation, outcome)
+        
+        # Aprendizaje específico de soporte
+        if outcome.get("resolved", False):
+            self._learn_from_resolved_issue(conversation, outcome)
         else:
-            return "general_support"
+            self._learn_from_unresolved_issue(conversation, outcome)
+        
+        return learning_outcome
+    
+    def _learn_from_resolved_issue(self, conversation: Dict[str, Any], outcome: Dict[str, Any]):
+        """Aprende de problemas resueltos"""
+        # Implementar lógica específica de aprendizaje de problemas resueltos
+        pass
+    
+    def _learn_from_unresolved_issue(self, conversation: Dict[str, Any], outcome: Dict[str, Any]):
+        """Aprende de problemas no resueltos"""
+        # Implementar lógica específica de aprendizaje de problemas no resueltos
+        pass
 
 
-class ComplaintAgent(BaseAgent):
+class CoordinatorAgent(BaseAgent):
+    """Agente coordinador que gestiona múltiples agentes especializados"""
+    
     def __init__(self):
-        super().__init__("complaint_agent", "quejas")
-
-    def process(self, WhatsAppConversation: WhatsAppConversation, context: str = "") -> Dict[str, Any]:
-        """Procesa conversaciones de quejas"""
-
-        # Obtener contexto
-        full_context = context + "\n" + self.get_context(WhatsAppConversation)
-
-        # Analizar la queja
-        complaint_analysis = self._analyze_complaint(
-            WhatsAppConversation, full_context)
-
-        # Generar respuesta de quejas
-        response = llm_service.generate_response(
-            str(WhatsAppConversation.messages[-1].content),
-            full_context,
-            "quejas"
-        )
-
-        # Determinar acción de resolución
-        resolution_action = self._determine_resolution_action(
-            complaint_analysis, WhatsAppConversation)
-
-        action = AgentAction(
-            agent_id=self.agent_id,
-            action_type="complaint_process",
-            timestamp=datetime.now(),
-            input_data={
-                "WhatsAppConversation_id": WhatsAppConversation.id,
-                "customer_name": WhatsAppConversation.customer_name,
-                "last_message": str(WhatsAppConversation.messages[-1].content)
-            },
-            output_data={
-                "complaint_analysis": complaint_analysis,
-                "response": response,
-                "resolution_action": resolution_action
-            },
-            confidence=complaint_analysis.get("confidence", 0.5)
-        )
-
-        self.learn(action, {"success": True})
-
-        return {
-            "agent_id": self.agent_id,
-            "action_type": "complaint_process",
-            "response": response,
-            "complaint_analysis": complaint_analysis,
-            "resolution_action": resolution_action,
-            "confidence": complaint_analysis.get("confidence", 0.5)
+        super().__init__("coordinator", "Agente Coordinador")
+        self.specialization_areas = ["coordinación", "enrutamiento", "gestión", "optimización"]
+        self.coordination_metrics = {
+            "agents_coordinated": 0,
+            "conflicts_resolved": 0,
+            "efficiency_score": 0.0
         }
-
-    def _analyze_complaint(self, WhatsAppConversation: WhatsAppConversation, context: str) -> Dict[str, Any]:
-        """Analiza la queja del cliente"""
-        WhatsAppConversation_text = "\n".join(
-            [msg.content for msg in WhatsAppConversation.messages])
-
-        analysis = llm_service.analyze_intent(
-            WhatsAppConversation_text,
-            context,
-            "complaint_analysis"
-        )
-
-        return {
-            "complaint_type": analysis.get("complaint_type", "unknown"),
-            "severity": analysis.get("severity", "low"),
-            "confidence": analysis.get("confidence", 0.5),
-            "affected_products": analysis.get("affected_products", []),
-            "customer_emotion": analysis.get("emotion", "neutral"),
-            "resolution_urgency": analysis.get("urgency", "low")
+    
+    def coordinate_agents(self, conversation: Dict[str, Any], agent_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Coordina los resultados de múltiples agentes"""
+        try:
+            coordination_result = {
+                "conversation_id": conversation.get("id"),
+                "agents_involved": list(agent_results.keys()),
+                "coordination_timestamp": datetime.now().isoformat(),
+                "conflicts_detected": 0,
+                "conflicts_resolved": 0,
+                "unified_plan": {},
+                "efficiency_score": 0.8
+            }
+            
+            # Analizar resultados de agentes
+            for agent_type, result in agent_results.items():
+                if result.get("success", False):
+                    self.coordination_metrics["agents_coordinated"] += 1
+                else:
+                    # Detectar conflictos
+                    coordination_result["conflicts_detected"] += 1
+            
+            # Resolver conflictos (simulado)
+            if coordination_result["conflicts_detected"] > 0:
+                coordination_result["conflicts_resolved"] = coordination_result["conflicts_detected"]
+                self.coordination_metrics["conflicts_resolved"] += coordination_result["conflicts_resolved"]
+            
+            # Crear plan unificado
+            coordination_result["unified_plan"] = self._create_unified_plan(agent_results)
+            
+            # Aprender de la coordinación
+            self.learn_from_conversation(conversation, coordination_result)
+            
+            return coordination_result
+            
+        except Exception as e:
+            logger.error(f"❌ Error coordinando agentes: {e}")
+            return {"error": str(e)}
+    
+    def _create_unified_plan(self, agent_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Crea un plan unificado basándose en los resultados de todos los agentes"""
+        unified_plan = {
+            "actions": [],
+            "priorities": [],
+            "timeline": {},
+            "resources_needed": []
         }
+        
+        # Consolidar acciones de todos los agentes
+        for agent_type, result in agent_results.items():
+            if result.get("success", False) and "result" in result:
+                agent_result = result["result"]
+                if "recommendations" in agent_result:
+                    unified_plan["actions"].extend(agent_result["recommendations"])
+        
+        return unified_plan
 
-    def _determine_resolution_action(self, complaint_analysis: Dict[str, Any], WhatsAppConversation: WhatsAppConversation) -> str:
-        """Determina la acción de resolución basada en el análisis de la queja"""
-        complaint_type = complaint_analysis.get("complaint_type", "unknown")
-        severity = complaint_analysis.get("severity", "low")
-        urgency = complaint_analysis.get("resolution_urgency", "low")
 
-        if severity == "high" or urgency == "high":
-            return "immediate_escalation"
-        elif complaint_type == "service":
-            return "service_recovery"
-        elif complaint_type == "product":
-            return "product_replacement"
-        else:
-            return "standard_resolution"
+# Instancias globales de agentes
+sales_agent = SalesAgent()
+support_agent = SupportAgent()
+coordinator_agent = CoordinatorAgent()
+
+# Diccionario de agentes disponibles
+available_agents = {
+    "sales": sales_agent,
+    "support": support_agent,
+    "coordinator": coordinator_agent
+}
 
 
 class AgentManager:
-    """Gestiona y coordina múltiples agentes"""
-
+    """Gestor central de todos los agentes del sistema"""
+    
     def __init__(self):
-        self.agents = {
-            "ventas": SalesAgent(),
-            "soporte": SupportAgent(),
-            "quejas": ComplaintAgent()
-        }
-        self.WhatsAppConversation_history: Dict[str, List[Dict[str, Any]]] = {}
-
-    def route_WhatsAppConversation(self, WhatsAppConversation: WhatsAppConversation) -> Dict[str, Any]:
-        """Enruta una conversación al agente apropiado"""
-        agent_type = WhatsAppConversation.category or "general"
-
-        if agent_type in self.agents:
-            result = self.agents[agent_type].process(WhatsAppConversation)
-        else:
-            result = self._general_processing(WhatsAppConversation)
-
-        # Guardar historial
-        if WhatsAppConversation.id not in self.WhatsAppConversation_history:
-            self.WhatsAppConversation_history[WhatsAppConversation.id] = []
-
-        self.WhatsAppConversation_history[WhatsAppConversation.id].append({
-            "timestamp": datetime.now(),
-            "agent_type": agent_type,
-            "result": result
-        })
-
-        return result
-
-    def _general_processing(self, WhatsAppConversation: WhatsAppConversation) -> Dict[str, Any]:
-        """Procesamiento general para conversaciones no categorizadas"""
-        WhatsAppConversation_text = "\n".join(
-            [msg.content for msg in WhatsAppConversation.messages])
-
-        # Clasificar la conversación
-        classification = llm_service.classify_conversation(
-            WhatsAppConversation_text,
-            ["ventas", "soporte", "quejas", "consulta", "otro"]
-        )
-
-        # Actualizar categoría
-        WhatsAppConversation.category = classification.get(
-            "category", "consulta")
-
-        # Reenrutar con la nueva categoría
-        return self.route_WhatsAppConversation(WhatsAppConversation)
-
-    def get_agent_performance(self, agent_type: str = None) -> Dict[str, Any]:
-        """Obtiene métricas de rendimiento de los agentes"""
-        if agent_type:
-            if agent_type in self.agents:
-                return self.agents[agent_type].performance_metrics
+        self.agents = available_agents
+        self.agent_performance = {}
+        self.routing_rules = {}
+        
+        logger.info(f"🤖 AgentManager inicializado con {len(self.agents)} agentes")
+    
+    def route_conversation(self, conversation, agent_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Enruta una conversación a un agente específico"""
+        try:
+            if agent_type not in self.agents:
+                logger.warning(f"⚠️ Agente {agent_type} no encontrado, usando coordinador")
+                agent_type = "coordinator"
+            
+            agent = self.agents.get(agent_type)
+            if agent:
+                # Procesar con el agente específico
+                if agent_type == "sales":
+                    result = agent.learn_from_sales_conversation(conversation, context)
+                elif agent_type == "support":
+                    result = agent.learn_from_support_conversation(conversation, context)
+                else:
+                    result = agent.learn_from_conversation(conversation, context)
+                
+                # Actualizar métricas de rendimiento
+                self._update_agent_performance(agent_type, result)
+                
+                return {
+                    "agent_type": agent_type,
+                    "result": result,
+                    "success": True,
+                    "timestamp": datetime.now().isoformat()
+                }
             else:
-                return {}
+                return {
+                    "agent_type": agent_type,
+                    "result": None,
+                    "success": False,
+                    "error": f"Agente {agent_type} no disponible",
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error enrutando conversación a {agent_type}: {e}")
+            return {
+                "agent_type": agent_type,
+                "result": None,
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def get_agent_status(self, agent_type: str) -> Dict[str, Any]:
+        """Obtiene el estado de un agente específico"""
+        if agent_type in self.agents:
+            agent = self.agents[agent_type]
+            return agent.get_learning_summary()
+        else:
+            return {"error": f"Agente {agent_type} no encontrado"}
+    
+    def get_all_agents_status(self) -> Dict[str, Any]:
+        """Obtiene el estado de todos los agentes"""
+        status = {}
+        for agent_type, agent in self.agents.items():
+            status[agent_type] = agent.get_learning_summary()
+        return status
+    
+    def _update_agent_performance(self, agent_type: str, result: Dict[str, Any]):
+        """Actualiza las métricas de rendimiento del agente"""
+        try:
+            if agent_type not in self.agent_performance:
+                self.agent_performance[agent_type] = {
+                    "total_conversations": 0,
+                    "successful_conversations": 0,
+                    "learning_count": 0,
+                    "last_activity": None
+                }
+            
+            # Actualizar métricas
+            self.agent_performance[agent_type]["total_conversations"] += 1
+            if result.get("success", False):
+                self.agent_performance[agent_type]["successful_conversations"] += 1
+            
+            if result.get("patterns_identified") or result.get("improvements_suggested"):
+                self.agent_performance[agent_type]["learning_count"] += 1
+            
+            self.agent_performance[agent_type]["last_activity"] = datetime.now().isoformat()
+            
+        except Exception as e:
+            logger.error(f"❌ Error actualizando métricas de rendimiento: {e}")
 
-        return {
-            agent_type: agent.performance_metrics
-            for agent_type, agent in self.agents.items()
-        }
 
-    def get_WhatsAppConversation_history(self, WhatsAppConversation_id: str) -> List[Dict[str, Any]]:
-        """Obtiene el historial de una conversación específica"""
-        return self.WhatsAppConversation_history.get(WhatsAppConversation_id, [])
-
-
-# Instancia global del gestor de agentes
+# Instancia global del AgentManager
 agent_manager = AgentManager()

@@ -463,6 +463,7 @@ class TagPersistenceService:
 
             # Crear conversación de prueba
             from models.conversation import Conversation
+            from models.tag import TagUsage
             test_conversation_id = str(uuid4())
 
             with get_session() as session:
@@ -491,10 +492,30 @@ class TagPersistenceService:
                 if result:
                     print(f"✅ DEBUG: Prueba de persistencia EXITOSA")
 
-                    # Limpiar datos de prueba
-                    session.delete(test_conversation)
-                    session.commit()
-                    print(f"🧹 DEBUG: Datos de prueba limpiados")
+                    # 🛠️ LIMPIEZA CORRECTA: Eliminar primero los registros de tag_usage
+                    try:
+                        # Eliminar registros de TagUsage que referencian esta conversación
+                        tag_usages = session.query(TagUsage).filter(
+                            TagUsage.conversation_id == test_conversation_id
+                        ).all()
+
+                        for tag_usage in tag_usages:
+                            session.delete(tag_usage)
+
+                        session.commit()
+                        print(
+                            f"🧹 DEBUG: {len(tag_usages)} registros de TagUsage eliminados")
+
+                        # Ahora sí eliminar la conversación de prueba
+                        session.delete(test_conversation)
+                        session.commit()
+                        print(f"🧹 DEBUG: Conversación de prueba eliminada")
+
+                    except Exception as cleanup_error:
+                        print(
+                            f"⚠️ ADVERTENCIA: Error en limpieza: {cleanup_error}")
+                        # No fallar la prueba por problemas de limpieza
+                        pass
 
                     return True
                 else:
