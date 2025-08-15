@@ -2,6 +2,21 @@
 Super Agente - Cerebro Central del Sistema
 Se retroalimenta de todos los agentes especializados y aprende continuamente
 """
+from models.agent import SuperAgentModel
+from models.agent import AgentLearning as AgentLearningModel
+from models.metric import AgentMetrics as AgentMetricModel
+from models.customer import CustomerProfile as CustomerProfileModel
+from models.conversation import Conversation as ConversationModel
+from sqlmodel import Session, select
+from core.db import get_session
+from models.metric import AgentMetrics
+from models.customer import CustomerProfile
+from models.conversation import Conversation
+from models.agent_models import AgentAction, AgentMemory
+from services.smart_tagging import smart_tagging_service
+from services.agents import agent_manager
+from services.vector_store import vector_store
+from services.llm import llm_service
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import json
@@ -10,22 +25,11 @@ from collections import defaultdict, Counter
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
+import pytz
 
-from services.llm import llm_service
-from services.vector_store import vector_store
-from services.agents import agent_manager
-from services.smart_tagging import smart_tagging_service
-from models.agent_models import AgentAction, AgentMemory
-from models.conversation import Conversation
-from models.customer import CustomerProfile
-from models.metric import AgentMetrics
-from core.db import get_session
-from sqlmodel import Session, select
-from models.conversation import Conversation as ConversationModel
-from models.customer import CustomerProfile as CustomerProfileModel
-from models.metric import AgentMetrics as AgentMetricModel
-from models.agent import AgentLearning as AgentLearningModel
-from models.agent import SuperAgentModel
+# Configuración de zona horaria
+COLOMBIA_TZ = pytz.timezone("America/Bogota")
+
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -81,21 +85,21 @@ class SuperAgent:
 
         logger.info(
             "🧠 Super Agente inicializado - Sistema de aprendizaje activo")
-    
+
     def _register_in_database(self):
         """Registra el Super Agente en la base de datos"""
         try:
             from models.agent import SuperAgentModel
             from core.db import get_session
             from sqlmodel import select
-            
+
             with get_session() as session:
                 # Verificar si ya existe un Super Agente
                 existing_super_agent = session.exec(
                     select(SuperAgentModel)
                     .where(SuperAgentModel.name == self.name)
                 ).first()
-                
+
                 if existing_super_agent:
                     # Actualizar el existente
                     existing_super_agent.version = self.version
@@ -108,7 +112,8 @@ class SuperAgent:
                     }
                     session.add(existing_super_agent)
                     self.db_id = existing_super_agent.id
-                    logger.info(f"🔄 Super Agente existente actualizado en BD: {self.db_id}")
+                    logger.info(
+                        f"🔄 Super Agente existente actualizado en BD: {self.db_id}")
                 else:
                     # Crear nuevo registro
                     super_agent_record = SuperAgentModel(
@@ -131,8 +136,9 @@ class SuperAgent:
                     session.commit()
                     session.refresh(super_agent_record)
                     self.db_id = super_agent_record.id
-                    logger.info(f"✅ Super Agente registrado en BD con ID: {self.db_id}")
-                
+                    logger.info(
+                        f"✅ Super Agente registrado en BD con ID: {self.db_id}")
+
         except Exception as e:
             logger.error(f"❌ Error registrando Super Agente en BD: {e}")
             self.db_id = None
@@ -143,28 +149,34 @@ class SuperAgent:
         y extrae aprendizaje para el sistema
         """
         try:
-            logger.info(f"🧠 Super Agente procesando conversación: {conversation.id}")
+            logger.info(
+                f"🧠 Super Agente procesando conversación: {conversation.id}")
 
             # 1. Análisis inicial de la conversación
             initial_analysis = self._analyze_conversation_context(conversation)
 
             # 2. 🆕 APLICAR APRENDIZAJES PARA ENRUTAMIENTO INTELIGENTE
-            intelligent_routing = self._apply_learnings_for_routing(conversation)
-            logger.info(f"🧠 Enrutamiento inteligente basado en aprendizajes: {intelligent_routing}")
+            intelligent_routing = self._apply_learnings_for_routing(
+                conversation)
+            logger.info(
+                f"🧠 Enrutamiento inteligente basado en aprendizajes: {intelligent_routing}")
 
             # 3. Enrutar a agentes especializados usando aprendizajes
             agent_results = self._route_to_specialized_agents_with_learnings(
                 conversation, initial_analysis, intelligent_routing)
 
             # 4. Sintetizar resultados de todos los agentes
-            synthesis = self._synthesize_agent_results(agent_results, conversation)
+            synthesis = self._synthesize_agent_results(
+                agent_results, conversation)
 
             # 5. Aprender del proceso completo
-            learning_outcome = self._learn_from_conversation(conversation, synthesis)
+            learning_outcome = self._learn_from_conversation(
+                conversation, synthesis)
 
             # 6. 🆕 APLICAR OPTIMIZACIONES BASADAS EN APRENDIZAJES
             if intelligent_routing.get("optimization_applied", False):
-                logger.info(f"🔧 Optimizaciones aplicadas basándose en aprendizajes")
+                logger.info(
+                    f"🔧 Optimizaciones aplicadas basándose en aprendizajes")
 
             # 7. Guardar aprendizajes en BD
             self._save_learnings_to_db(conversation, learning_outcome)
@@ -173,7 +185,8 @@ class SuperAgent:
             self._update_metrics_in_db(conversation, synthesis)
 
             # 9. Actualizar memoria global
-            self._update_global_memory(conversation, synthesis, learning_outcome)
+            self._update_global_memory(
+                conversation, synthesis, learning_outcome)
 
             # 10. Verificar si hay aprendizajes significativos
             if self._has_significant_learning(learning_outcome):
@@ -288,8 +301,9 @@ class SuperAgent:
     def _apply_learnings_for_routing(self, conversation: Conversation) -> Dict[str, Any]:
         """Usa aprendizajes acumulados para tomar decisiones inteligentes de enrutamiento"""
         try:
-            logger.info(f"🧠 Aplicando aprendizajes para enrutamiento de conversación: {conversation.id}")
-            
+            logger.info(
+                f"🧠 Aplicando aprendizajes para enrutamiento de conversación: {conversation.id}")
+
             routing_decision = {
                 "recommended_agents": [],
                 "confidence_score": 0.0,
@@ -297,38 +311,47 @@ class SuperAgent:
                 "patterns_used": [],
                 "optimization_applied": False
             }
-            
+
             with get_session() as session:
                 # 1. Buscar patrones similares en conversaciones previas
-                similar_patterns = self._find_similar_conversation_patterns(session, conversation)
-                
+                similar_patterns = self._find_similar_conversation_patterns(
+                    session, conversation)
+
                 # 2. Buscar aprendizajes de agentes para esta categoría
-                agent_learnings = self._find_agent_learnings_for_category(session, conversation.category)
-                
+                agent_learnings = self._find_agent_learnings_for_category(
+                    session, conversation.category)
+
                 # 3. Buscar patrones de éxito del cliente
-                customer_patterns = self._find_customer_success_patterns(session, conversation.customer_id)
-                
+                customer_patterns = self._find_customer_success_patterns(
+                    session, conversation.customer_id)
+
                 # 4. Tomar decisión basada en aprendizajes
                 if similar_patterns or agent_learnings or customer_patterns:
                     routing_decision = self._make_intelligent_routing_decision(
                         conversation, similar_patterns, agent_learnings, customer_patterns
                     )
                     routing_decision["learning_based"] = True
-                    
+
                     # 5. Aplicar optimizaciones basadas en aprendizajes
-                    optimizations = self._apply_learnings_optimizations(session, conversation, routing_decision)
-                    routing_decision["optimization_applied"] = bool(optimizations)
-                    
-                    logger.info(f"✅ Decisión de enrutamiento basada en aprendizajes: {routing_decision}")
+                    optimizations = self._apply_learnings_optimizations(
+                        session, conversation, routing_decision)
+                    routing_decision["optimization_applied"] = bool(
+                        optimizations)
+
+                    logger.info(
+                        f"✅ Decisión de enrutamiento basada en aprendizajes: {routing_decision}")
                 else:
-                    logger.info(f"⚠️ No hay aprendizajes suficientes, usando enrutamiento por defecto")
-                    routing_decision["recommended_agents"] = [conversation.category, "coordinator"]
+                    logger.info(
+                        f"⚠️ No hay aprendizajes suficientes, usando enrutamiento por defecto")
+                    routing_decision["recommended_agents"] = [
+                        conversation.category, "coordinator"]
                     routing_decision["confidence_score"] = 0.5
-            
+
             return routing_decision
-            
+
         except Exception as e:
-            logger.error(f"❌ Error aplicando aprendizajes para enrutamiento: {e}")
+            logger.error(
+                f"❌ Error aplicando aprendizajes para enrutamiento: {e}")
             return {
                 "recommended_agents": [conversation.category, "coordinator"],
                 "confidence_score": 0.3,
@@ -341,19 +364,21 @@ class SuperAgent:
         """Encuentra patrones de conversaciones similares basándose en tags y categoría"""
         try:
             patterns = []
-            
+
             # Buscar conversaciones con tags similares
             if conversation.tags:
-                for tag in conversation.tags[:3]:  # Usar solo los 3 tags más importantes
+                # Usar solo los 3 tags más importantes
+                for tag in conversation.tags[:3]:
                     # Buscar conversaciones que contengan este tag
                     similar_conversations = session.exec(
                         select(ConversationModel)
-                        .where(ConversationModel.tags.any(tag))  # Usar .any() en lugar de .contains()
+                        # Usar .any() en lugar de .contains()
+                        .where(ConversationModel.tags.any(tag))
                         .where(ConversationModel.id != conversation.id)
                         .order_by(ConversationModel.created_at.desc())
                         .limit(5)
                     ).all()
-                    
+
                     for similar_conv in similar_conversations:
                         patterns.append({
                             "type": "tag_similarity",
@@ -364,7 +389,7 @@ class SuperAgent:
                             "success_rate": self._get_conversation_success_rate(similar_conv.id),
                             "similarity_score": 0.8
                         })
-            
+
             # Buscar conversaciones de la misma categoría con sentimiento similar
             category_conversations = session.exec(
                 select(ConversationModel)
@@ -373,7 +398,7 @@ class SuperAgent:
                 .order_by(ConversationModel.created_at.desc())
                 .limit(10)
             ).all()
-            
+
             for cat_conv in category_conversations:
                 if cat_conv.sentiment == conversation.sentiment:
                     patterns.append({
@@ -384,9 +409,9 @@ class SuperAgent:
                         "success_rate": self._get_conversation_success_rate(cat_conv.id),
                         "similarity_score": 0.7
                     })
-            
+
             return patterns
-            
+
         except Exception as e:
             logger.error(f"❌ Error encontrando patrones de conversación: {e}")
             return []
@@ -395,7 +420,7 @@ class SuperAgent:
         """Encuentra aprendizajes de agentes para una categoría específica"""
         try:
             learnings = []
-            
+
             # Buscar aprendizajes de agentes para esta categoría
             agent_learnings = session.exec(
                 select(AgentLearningModel)
@@ -404,7 +429,7 @@ class SuperAgent:
                 .order_by(AgentLearningModel.confidence_score.desc())
                 .limit(10)
             ).all()
-            
+
             for learning in agent_learnings:
                 learnings.append({
                     "agent_type": learning.agent_type,
@@ -414,9 +439,9 @@ class SuperAgent:
                     "category": learning.category,
                     "created_at": learning.created_at.isoformat()
                 })
-            
+
             return learnings
-            
+
         except Exception as e:
             logger.error(f"❌ Error encontrando aprendizajes de agentes: {e}")
             return []
@@ -425,10 +450,10 @@ class SuperAgent:
         """Encuentra patrones de éxito del cliente basándose en conversaciones previas"""
         try:
             patterns = []
-            
+
             if not customer_id or not self._is_valid_uuid(customer_id):
                 return patterns
-            
+
             # Buscar conversaciones exitosas del cliente
             customer_conversations = session.exec(
                 select(ConversationModel)
@@ -436,7 +461,7 @@ class SuperAgent:
                 .order_by(ConversationModel.created_at.desc())
                 .limit(10)
             ).all()
-            
+
             for conv in customer_conversations:
                 success_rate = self._get_conversation_success_rate(conv.id)
                 if success_rate > 0.7:  # Solo conversaciones exitosas
@@ -449,17 +474,18 @@ class SuperAgent:
                         "success_rate": success_rate,
                         "pattern_strength": 0.8
                     })
-            
+
             return patterns
-            
+
         except Exception as e:
-            logger.error(f"❌ Error encontrando patrones de éxito del cliente: {e}")
+            logger.error(
+                f"❌ Error encontrando patrones de éxito del cliente: {e}")
             return []
 
-    def _make_intelligent_routing_decision(self, conversation: Conversation, 
-                                         similar_patterns: List[Dict], 
-                                         agent_learnings: List[Dict], 
-                                         customer_patterns: List[Dict]) -> Dict[str, Any]:
+    def _make_intelligent_routing_decision(self, conversation: Conversation,
+                                           similar_patterns: List[Dict],
+                                           agent_learnings: List[Dict],
+                                           customer_patterns: List[Dict]) -> Dict[str, Any]:
         """Toma una decisión inteligente de enrutamiento basándose en todos los aprendizajes"""
         try:
             routing_decision = {
@@ -469,41 +495,51 @@ class SuperAgent:
                 "patterns_used": [],
                 "optimization_applied": False
             }
-            
+
             # 1. Analizar patrones de conversaciones similares
             if similar_patterns:
-                successful_categories = [p["category"] for p in similar_patterns if p.get("success_rate", 0) > 0.7]
+                successful_categories = [
+                    p["category"] for p in similar_patterns if p.get("success_rate", 0) > 0.7]
                 if successful_categories:
-                    routing_decision["recommended_agents"].extend(successful_categories[:2])
-                    routing_decision["patterns_used"].append("conversation_similarity")
-            
+                    routing_decision["recommended_agents"].extend(
+                        successful_categories[:2])
+                    routing_decision["patterns_used"].append(
+                        "conversation_similarity")
+
             # 2. Analizar aprendizajes de agentes
             if agent_learnings:
-                successful_agents = [l["agent_type"] for l in agent_learnings if l.get("confidence_score", 0) > 0.8]
+                successful_agents = [l["agent_type"] for l in agent_learnings if l.get(
+                    "confidence_score", 0) > 0.8]
                 if successful_agents:
-                    routing_decision["recommended_agents"].extend(successful_agents[:2])
+                    routing_decision["recommended_agents"].extend(
+                        successful_agents[:2])
                     routing_decision["patterns_used"].append("agent_learnings")
-            
+
             # 3. Analizar patrones de éxito del cliente
             if customer_patterns:
-                customer_success_categories = [p["category"] for p in customer_patterns if p.get("success_rate", 0) > 0.8]
+                customer_success_categories = [
+                    p["category"] for p in customer_patterns if p.get("success_rate", 0) > 0.8]
                 if customer_success_categories:
-                    routing_decision["recommended_agents"].extend(customer_success_categories[:2])
-                    routing_decision["patterns_used"].append("customer_success_patterns")
-            
+                    routing_decision["recommended_agents"].extend(
+                        customer_success_categories[:2])
+                    routing_decision["patterns_used"].append(
+                        "customer_success_patterns")
+
             # 4. Agregar agente de coordinación si no hay suficientes agentes
             if len(routing_decision["recommended_agents"]) < 2:
                 routing_decision["recommended_agents"].append("coordinator")
-            
+
             # 5. Eliminar duplicados y calcular confianza
-            routing_decision["recommended_agents"] = list(set(routing_decision["recommended_agents"]))
-            
+            routing_decision["recommended_agents"] = list(
+                set(routing_decision["recommended_agents"]))
+
             # Calcular confianza basada en la cantidad y calidad de patrones
             pattern_count = len(routing_decision["patterns_used"])
-            routing_decision["confidence_score"] = min(0.9, 0.5 + (pattern_count * 0.1))
-            
+            routing_decision["confidence_score"] = min(
+                0.9, 0.5 + (pattern_count * 0.1))
+
             return routing_decision
-            
+
         except Exception as e:
             logger.error(f"❌ Error tomando decisión de enrutamiento: {e}")
             return {
@@ -514,28 +550,30 @@ class SuperAgent:
                 "optimization_applied": False
             }
 
-    def _apply_learnings_optimizations(self, session: Session, conversation: Conversation, 
-                                     routing_decision: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _apply_learnings_optimizations(self, session: Session, conversation: Conversation,
+                                       routing_decision: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Aplica optimizaciones basándose en aprendizajes acumulados"""
         try:
             optimizations = []
-            
+
             # 1. Optimizar parámetros de agentes basándose en éxito previo
-            agent_optimizations = self._optimize_agent_parameters_from_learnings(session, conversation)
+            agent_optimizations = self._optimize_agent_parameters_from_learnings(
+                session, conversation)
             if agent_optimizations:
                 optimizations.extend(agent_optimizations)
-            
+
             # 2. Optimizar lógica de enrutamiento
-            routing_optimizations = self._optimize_routing_from_learnings(session, conversation, routing_decision)
+            routing_optimizations = self._optimize_routing_from_learnings(
+                session, conversation, routing_decision)
             if routing_optimizations:
                 optimizations.extend(routing_optimizations)
-            
+
             # 3. Aplicar optimizaciones
             for optimization in optimizations:
                 self._apply_single_optimization(optimization)
-            
+
             return optimizations
-            
+
         except Exception as e:
             logger.error(f"❌ Error aplicando optimizaciones: {e}")
             return []
@@ -610,7 +648,7 @@ class SuperAgent:
             return {"error": str(e)}
 
     def _synthesize_agent_results(self, agent_results: Dict[str, Any],
-                                   conversation: Conversation) -> Dict[str, Any]:
+                                  conversation: Conversation) -> Dict[str, Any]:
         """Sintetiza los resultados de todos los agentes"""
         synthesis = {
             "conversation_id": conversation.id,
@@ -660,6 +698,9 @@ class SuperAgent:
             if self._has_significant_learning(learning_outcome):
                 self._trigger_learning_cycle(learning_outcome)
 
+            # 🆕 SINCRONIZAR MEMORIA CON BASE DE DATOS
+            self._sync_memory_to_database()
+
             return learning_outcome
 
         except Exception as e:
@@ -699,7 +740,7 @@ class SuperAgent:
         """Identifica patrones del cliente basándose en datos históricos de la BD"""
         try:
             patterns = []
-            
+
             # Si no hay customer_id válido, no buscar patrones
             if not conversation.customer_id or not self._is_valid_uuid(conversation.customer_id):
                 return patterns
@@ -764,7 +805,7 @@ class SuperAgent:
     def _identify_conversation_patterns(self, conversation: Conversation):
         """Identifica patrones en la conversación actual"""
         patterns = []
-        
+
         try:
             # Patrón de categoría
             if conversation.category:
@@ -774,7 +815,7 @@ class SuperAgent:
                     "confidence": 0.9,
                     "data_points": 1
                 })
-            
+
             # Patrón de tags
             if conversation.tags:
                 patterns.append({
@@ -783,7 +824,7 @@ class SuperAgent:
                     "confidence": 0.8,
                     "data_points": len(conversation.tags)
                 })
-            
+
             # Patrón de sentimiento
             if conversation.sentiment:
                 patterns.append({
@@ -792,16 +833,17 @@ class SuperAgent:
                     "confidence": 0.7,
                     "data_points": 1
                 })
-                
+
         except Exception as e:
-            logger.error(f"❌ Error identificando patrones de conversación: {e}")
-            
+            logger.error(
+                f"❌ Error identificando patrones de conversación: {e}")
+
         return patterns
 
     def _identify_agent_patterns(self, synthesis: Dict[str, Any]):
         """Identifica patrones en el rendimiento de agentes"""
         patterns = []
-        
+
         try:
             # Patrón de participación de agentes
             if synthesis.get("agent_participation"):
@@ -811,7 +853,7 @@ class SuperAgent:
                     "confidence": 0.8,
                     "data_points": len(synthesis["agent_participation"])
                 })
-            
+
             # Patrón de confianza general
             if synthesis.get("confidence_score"):
                 patterns.append({
@@ -820,16 +862,16 @@ class SuperAgent:
                     "confidence": 0.7,
                     "data_points": 1
                 })
-                
+
         except Exception as e:
             logger.error(f"❌ Error identificando patrones de agentes: {e}")
-            
+
         return patterns
 
     def _identify_business_patterns(self, conversation: Conversation, synthesis: Dict[str, Any]):
         """Identifica patrones de negocio"""
         patterns = []
-        
+
         try:
             # Patrón de riesgo
             if synthesis.get("risk_assessment"):
@@ -840,7 +882,7 @@ class SuperAgent:
                     "confidence": 0.6,
                     "data_points": 1
                 })
-            
+
             # Patrón de oportunidades
             if synthesis.get("opportunity_identification"):
                 opportunities = synthesis["opportunity_identification"]
@@ -851,10 +893,10 @@ class SuperAgent:
                         "confidence": 0.7,
                         "data_points": len(opportunities)
                     })
-                    
+
         except Exception as e:
             logger.error(f"❌ Error identificando patrones de negocio: {e}")
-            
+
         return patterns
 
     def _trigger_learning_cycle(self, learning_outcome: Dict[str, Any]):
@@ -1145,9 +1187,11 @@ class SuperAgent:
 
                 if metrics:
                     context["total_metrics"] = len(metrics)
-                    success_rates = [m.success_rate for m in metrics if m.success_rate is not None]
+                    success_rates = [
+                        m.success_rate for m in metrics if m.success_rate is not None]
                     if success_rates:
-                        context["average_success_rate"] = sum(success_rates) / len(success_rates)
+                        context["average_success_rate"] = sum(
+                            success_rates) / len(success_rates)
                     else:
                         context["average_success_rate"] = 0.0
 
@@ -1242,7 +1286,7 @@ class SuperAgent:
             return "neutral"
         except Exception as e:
             logger.error(f"❌ Error calculando sentimiento general: {e}")
-            return "neutral"
+        return "neutral"
 
     def _calculate_overall_confidence(self, agent_results: Dict[str, Any]):
         """Implementar cálculo de confianza general"""
@@ -1260,16 +1304,16 @@ class SuperAgent:
     def _extract_recommended_actions(self, agent_results: Dict[str, Any]):
         """Implementar extracción de acciones recomendadas"""
         actions = []
-        
+
         try:
             # Extraer recomendaciones de todos los agentes
             for agent_type, result in agent_results.items():
                 if isinstance(result, dict) and "recommendations" in result:
                     actions.extend(result["recommendations"])
-                    
+
         except Exception as e:
             logger.error(f"❌ Error extrayendo acciones recomendadas: {e}")
-            
+
         return actions
 
     def _assess_overall_risk(self, agent_results: Dict[str, Any]):
@@ -1288,7 +1332,7 @@ class SuperAgent:
     def _identify_opportunities(self, agent_results: Dict[str, Any]):
         """Implementar identificación de oportunidades"""
         opportunities = []
-        
+
         try:
             # Identificar oportunidades basándose en resultados de agentes
             for agent_type, result in agent_results.items():
@@ -1298,31 +1342,31 @@ class SuperAgent:
                         "description": f"Agente {agent_type} funcionando correctamente",
                         "confidence": 0.8
                     })
-                    
+
         except Exception as e:
             logger.error(f"❌ Error identificando oportunidades: {e}")
-            
+
         return opportunities
 
     def _extract_learning_points(self, agent_results: Dict[str, Any]):
         """Implementar extracción de puntos de aprendizaje"""
         learning_points = []
-        
+
         try:
             # Extraer puntos de aprendizaje de todos los agentes
             for agent_type, result in agent_results.items():
                 if isinstance(result, dict) and "learning_generated" in result:
                     learning_points.extend(result["learning_generated"])
-                    
+
         except Exception as e:
             logger.error(f"❌ Error extrayendo puntos de aprendizaje: {e}")
-            
+
         return learning_points
 
     def _learn_from_agent_performance(self, synthesis: Dict[str, Any]):
         """Implementar aprendizaje del rendimiento de agentes"""
         learnings = []
-        
+
         try:
             # Aprender de la participación de agentes
             if synthesis.get("agent_participation"):
@@ -1332,7 +1376,7 @@ class SuperAgent:
                     "confidence": 0.8,
                     "category": "agent_learning"
                 })
-            
+
             # Aprender de la confianza general
             if synthesis.get("confidence_score"):
                 confidence = synthesis["confidence_score"]
@@ -1350,17 +1394,18 @@ class SuperAgent:
                         "confidence": 0.7,
                         "category": "system_learning"
                     })
-                    
+
         except Exception as e:
-            logger.error(f"❌ Error aprendiendo del rendimiento de agentes: {e}")
-            
+            logger.error(
+                f"❌ Error aprendiendo del rendimiento de agentes: {e}")
+
         return learnings
 
     def _extract_business_insights(self, conversation: Conversation,
                                    synthesis: Dict[str, Any]):
         """Implementar extracción de insights de negocio"""
         insights = []
-        
+
         try:
             # Insight de categoría de conversación
             if conversation.category:
@@ -1370,7 +1415,7 @@ class SuperAgent:
                     "confidence": 0.8,
                     "category": "business_insight"
                 })
-            
+
             # Insight de sentimiento del cliente
             if conversation.sentiment:
                 insights.append({
@@ -1379,7 +1424,7 @@ class SuperAgent:
                     "confidence": 0.7,
                     "category": "customer_insight"
                 })
-            
+
             # Insight de rendimiento del sistema
             if synthesis.get("confidence_score"):
                 confidence = synthesis["confidence_score"]
@@ -1390,10 +1435,10 @@ class SuperAgent:
                         "confidence": 0.9,
                         "category": "system_insight"
                     })
-                    
+
         except Exception as e:
             logger.error(f"❌ Error extrayendo insights de negocio: {e}")
-            
+
         return insights
 
     def _has_significant_learning(self, learning_outcome: Dict[str, Any]):
@@ -1403,19 +1448,19 @@ class SuperAgent:
             patterns = learning_outcome.get("patterns_identified", [])
             if len(patterns) > 2:
                 return True
-            
+
             # Verificar si hay optimizaciones de agentes
             optimizations = learning_outcome.get("agent_optimizations", [])
             if len(optimizations) > 1:
                 return True
-            
+
             # Verificar si hay insights de negocio
             insights = learning_outcome.get("business_insights", [])
             if len(insights) > 2:
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             logger.error(f"❌ Error verificando aprendizaje significativo: {e}")
             return False
@@ -1454,7 +1499,7 @@ class SuperAgent:
         """Implementar optimización de rendimiento de agentes"""
         try:
             optimizations = []
-            
+
             # Si la tasa de éxito es baja, optimizar
             if performance_analysis.get("success_rate", 0) < 0.7:
                 optimizations.append({
@@ -1462,17 +1507,17 @@ class SuperAgent:
                     "description": "Baja tasa de éxito - optimizando parámetros de agentes",
                     "priority": "high"
                 })
-            
+
             return optimizations
         except Exception as e:
             logger.error(f"❌ Error optimizando rendimiento de agentes: {e}")
-            return []
+        return []
 
     def _optimize_conversation_routing(self, performance_analysis: Dict[str, Any]):
         """Implementar optimización de enrutamiento de conversaciones"""
         try:
             optimizations = []
-            
+
             # Si hay muchos ciclos de aprendizaje, optimizar enrutamiento
             if performance_analysis.get("learning_cycles", 0) > 10:
                 optimizations.append({
@@ -1480,7 +1525,7 @@ class SuperAgent:
                     "description": "Muchos ciclos de aprendizaje - optimizando enrutamiento",
                     "priority": "medium"
                 })
-            
+
             return optimizations
         except Exception as e:
             logger.error(f"❌ Error optimizando enrutamiento: {e}")
@@ -1490,7 +1535,7 @@ class SuperAgent:
         """Implementar optimización de uso de memoria"""
         try:
             optimizations = []
-            
+
             # Limpiar memoria antigua si es necesario
             if len(self.global_memory["conversation_trends"]) > 1000:
                 optimizations.append({
@@ -1498,7 +1543,7 @@ class SuperAgent:
                     "description": "Memoria grande - limpiando datos antiguos",
                     "priority": "low"
                 })
-            
+
             return optimizations
         except Exception as e:
             logger.error(f"❌ Error optimizando uso de memoria: {e}")
@@ -1507,14 +1552,15 @@ class SuperAgent:
     def _apply_system_optimizations(self, optimizations: Dict[str, Any]):
         """Implementar aplicación de optimizaciones del sistema"""
         try:
-            logger.info(f"🔧 Aplicando {sum(len(opt) for opt in optimizations.values())} optimizaciones del sistema")
-            
+            logger.info(
+                f"🔧 Aplicando {sum(len(opt) for opt in optimizations.values())} optimizaciones del sistema")
+
             # Por ahora, solo registrar las optimizaciones
             # En el futuro, esto debería aplicar cambios reales
             for optimization_type, optimization_list in optimizations.items():
                 for optimization in optimization_list:
                     logger.info(f"🔧 Aplicando optimización: {optimization}")
-                    
+
         except Exception as e:
             logger.error(f"❌ Error aplicando optimizaciones del sistema: {e}")
 
@@ -1552,13 +1598,14 @@ class SuperAgent:
         """Implementar actualización de métricas globales"""
         try:
             self.aggregated_metrics["total_conversations"] += 1
-            
+
             # Actualizar tasa de éxito
             if synthesis.get("confidence_score"):
                 current_success_rate = self.aggregated_metrics["success_rate"]
-                new_success_rate = (current_success_rate + synthesis["confidence_score"]) / 2
+                new_success_rate = (current_success_rate +
+                                    synthesis["confidence_score"]) / 2
                 self.aggregated_metrics["success_rate"] = new_success_rate
-                
+
         except Exception as e:
             logger.error(f"❌ Error actualizando métricas globales: {e}")
 
@@ -1566,13 +1613,13 @@ class SuperAgent:
         """Implementar generación de insights de clientes"""
         try:
             insights = {}
-            
+
             # Por ahora, retornar insights básicos
             # En el futuro, esto debería analizar datos reales de clientes
             insights["total_customers"] = 0
             insights["active_customers"] = 0
             insights["customer_satisfaction"] = 0.8
-            
+
             return insights
         except Exception as e:
             logger.error(f"❌ Error generando insights de clientes: {e}")
@@ -1582,13 +1629,13 @@ class SuperAgent:
         """Implementar generación de insights de conversaciones"""
         try:
             insights = {}
-            
+
             # Por ahora, retornar insights básicos
             # En el futuro, esto debería analizar datos reales de conversaciones
             insights["total_conversations"] = self.aggregated_metrics["total_conversations"]
             insights["success_rate"] = self.aggregated_metrics["success_rate"]
             insights["average_response_time"] = self.aggregated_metrics["average_response_time"]
-            
+
             return insights
         except Exception as e:
             logger.error(f"❌ Error generando insights de conversaciones: {e}")
@@ -1598,13 +1645,13 @@ class SuperAgent:
         """Implementar generación de insights de agentes"""
         try:
             insights = {}
-            
+
             # Por ahora, retornar insights básicos
             # En el futuro, esto debería analizar datos reales de agentes
             insights["total_agents"] = 3  # sales, support, coordinator
             insights["active_agents"] = 3
             insights["average_agent_performance"] = 0.8
-            
+
             return insights
         except Exception as e:
             logger.error(f"❌ Error generando insights de agentes: {e}")
@@ -1614,13 +1661,13 @@ class SuperAgent:
         """Implementar generación de tendencias de negocio"""
         try:
             trends = {}
-            
+
             # Por ahora, retornar tendencias básicas
             # En el futuro, esto debería analizar datos reales de tendencias
             trends["conversation_growth"] = "stable"
             trends["customer_satisfaction_trend"] = "improving"
             trends["system_efficiency"] = "high"
-            
+
             return trends
         except Exception as e:
             logger.error(f"❌ Error generando tendencias de negocio: {e}")
@@ -1630,7 +1677,7 @@ class SuperAgent:
         """Implementar generación de recomendaciones de optimización"""
         try:
             recommendations = []
-            
+
             # Por ahora, retornar recomendaciones básicas
             # En el futuro, esto debería basarse en análisis real de datos
             if self.aggregated_metrics["success_rate"] < 0.8:
@@ -1640,7 +1687,7 @@ class SuperAgent:
                     "priority": "high",
                     "expected_impact": "15-20% improvement"
                 })
-            
+
             if len(self.global_memory["learning_cycles"]) > 5:
                 recommendations.append({
                     "type": "learning_optimization",
@@ -1648,17 +1695,18 @@ class SuperAgent:
                     "priority": "medium",
                     "expected_impact": "10-15% improvement"
                 })
-            
+
             return recommendations
         except Exception as e:
-            logger.error(f"❌ Error generando recomendaciones de optimización: {e}")
+            logger.error(
+                f"❌ Error generando recomendaciones de optimización: {e}")
             return []
 
     def _optimize_agent_parameters_from_learnings(self, session: Session, conversation: Conversation) -> List[Dict[str, Any]]:
         """Optimiza parámetros de agentes basándose en aprendizajes acumulados"""
         try:
             optimizations = []
-            
+
             # Buscar aprendizajes de agentes exitosos para esta categoría
             successful_agent_learnings = session.exec(
                 select(AgentLearningModel)
@@ -1668,7 +1716,7 @@ class SuperAgent:
                 .order_by(AgentLearningModel.confidence_score.desc())
                 .limit(5)
             ).all()
-            
+
             for learning in successful_agent_learnings:
                 optimization = {
                     "type": "agent_parameter_optimization",
@@ -1678,24 +1726,24 @@ class SuperAgent:
                     "category": learning.category,
                     "applied": False
                 }
-                
+
                 # Aplicar la optimización
                 if self._apply_agent_parameter_optimization(optimization):
                     optimization["applied"] = True
                     optimizations.append(optimization)
-            
+
             return optimizations
-            
+
         except Exception as e:
             logger.error(f"❌ Error optimizando parámetros de agentes: {e}")
             return []
 
-    def _optimize_routing_from_learnings(self, session: Session, conversation: Conversation, 
-                                       routing_decision: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _optimize_routing_from_learnings(self, session: Session, conversation: Conversation,
+                                         routing_decision: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Optimiza la lógica de enrutamiento basándose en aprendizajes"""
         try:
             optimizations = []
-            
+
             # Buscar patrones de enrutamiento exitosos
             routing_patterns = session.exec(
                 select(AgentLearningModel)
@@ -1705,7 +1753,7 @@ class SuperAgent:
                 .order_by(AgentLearningModel.confidence_score.desc())
                 .limit(3)
             ).all()
-            
+
             for pattern in routing_patterns:
                 optimization = {
                     "type": "routing_logic_optimization",
@@ -1714,14 +1762,14 @@ class SuperAgent:
                     "category": pattern.category,
                     "applied": False
                 }
-                
+
                 # Aplicar la optimización de enrutamiento
                 if self._apply_routing_optimization(optimization, routing_decision):
                     optimization["applied"] = True
                     optimizations.append(optimization)
-            
+
             return optimizations
-            
+
         except Exception as e:
             logger.error(f"❌ Error optimizando enrutamiento: {e}")
             return []
@@ -1730,22 +1778,22 @@ class SuperAgent:
         """Aplica una optimización específica de parámetros de agente"""
         try:
             logger.info(f"🔧 Aplicando optimización de agente: {optimization}")
-            
+
             # Por ahora, solo registrar la optimización
             # En el futuro, esto debería:
             # - Ajustar parámetros del agente
             # - Modificar configuraciones
             # - Actualizar pesos de decisión
-            
+
             # Guardar la optimización aplicada
             self.global_memory["agent_optimizations"].append({
                 "timestamp": datetime.now().isoformat(),
                 "optimization": optimization,
                 "status": "applied"
             })
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Error aplicando optimización de agente: {e}")
             return False
@@ -1753,14 +1801,15 @@ class SuperAgent:
     def _apply_routing_optimization(self, optimization: Dict[str, Any], routing_decision: Dict[str, Any]) -> bool:
         """Aplica una optimización específica de enrutamiento"""
         try:
-            logger.info(f"🔧 Aplicando optimización de enrutamiento: {optimization}")
-            
+            logger.info(
+                f"🔧 Aplicando optimización de enrutamiento: {optimization}")
+
             # Por ahora, solo registrar la optimización
             # En el futuro, esto debería:
             # - Ajustar pesos de enrutamiento
             # - Modificar reglas de decisión
             # - Actualizar umbrales de confianza
-            
+
             # Guardar la optimización aplicada
             self.global_memory["routing_optimizations"].append({
                 "timestamp": datetime.now().isoformat(),
@@ -1768,11 +1817,12 @@ class SuperAgent:
                 "routing_decision": routing_decision,
                 "status": "applied"
             })
-            
+
             return True
-            
+
         except Exception as e:
-            logger.error(f"❌ Error aplicando optimización de enrutamiento: {e}")
+            logger.error(
+                f"❌ Error aplicando optimización de enrutamiento: {e}")
             return False
 
     def _apply_single_optimization(self, optimization: Dict[str, Any]):
@@ -1783,54 +1833,60 @@ class SuperAgent:
             elif optimization["type"] == "routing_logic_optimization":
                 return self._apply_routing_optimization(optimization, {})
             else:
-                logger.warning(f"⚠️ Tipo de optimización desconocido: {optimization['type']}")
+                logger.warning(
+                    f"⚠️ Tipo de optimización desconocido: {optimization['type']}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"❌ Error aplicando optimización: {e}")
             return False
 
-    def _route_to_specialized_agents_with_learnings(self, conversation: Conversation, 
-                                                   initial_analysis: Dict[str, Any],
-                                                   intelligent_routing: Dict[str, Any]) -> Dict[str, Any]:
+    def _route_to_specialized_agents_with_learnings(self, conversation: Conversation,
+                                                    initial_analysis: Dict[str, Any],
+                                                    intelligent_routing: Dict[str, Any]) -> Dict[str, Any]:
         """Enruta a agentes especializados usando aprendizajes acumulados"""
         try:
             agent_results = {}
-            
+
             # Usar agentes recomendados por el sistema de aprendizaje
-            recommended_agents = intelligent_routing.get("recommended_agents", [])
-            
+            recommended_agents = intelligent_routing.get(
+                "recommended_agents", [])
+
             if recommended_agents and intelligent_routing.get("learning_based", False):
-                logger.info(f"🧠 Usando enrutamiento basado en aprendizajes: {recommended_agents}")
-                
+                logger.info(
+                    f"🧠 Usando enrutamiento basado en aprendizajes: {recommended_agents}")
+
                 for agent_type in recommended_agents:
                     try:
-                        agent_result = self._process_with_specific_agent(conversation, agent_type, initial_analysis)
+                        agent_result = self._process_with_specific_agent(
+                            conversation, agent_type, initial_analysis)
                         if agent_result:
                             agent_results[agent_type] = agent_result
                     except Exception as e:
                         logger.error(f"❌ Error con agente {agent_type}: {e}")
                         agent_results[agent_type] = {"error": str(e)}
             else:
-                logger.info(f"⚠️ Usando enrutamiento por defecto para categoría: {conversation.category}")
+                logger.info(
+                    f"⚠️ Usando enrutamiento por defecto para categoría: {conversation.category}")
                 # Enrutamiento por defecto
                 default_agent = conversation.category if conversation.category else "coordinator"
-                agent_result = self._process_with_specific_agent(conversation, default_agent, initial_analysis)
+                agent_result = self._process_with_specific_agent(
+                    conversation, default_agent, initial_analysis)
                 if agent_result:
                     agent_results[default_agent] = agent_result
-            
+
             return agent_results
-            
+
         except Exception as e:
             logger.error(f"❌ Error enrutando a agentes especializados: {e}")
             return {"error": str(e)}
 
-    def _process_with_specific_agent(self, conversation: Conversation, agent_type: str, 
-                                   initial_analysis: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_with_specific_agent(self, conversation: Conversation, agent_type: str,
+                                     initial_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """Procesa la conversación con un agente específico"""
         try:
             logger.info(f"🤖 Procesando con agente: {agent_type}")
-            
+
             # Por ahora, simular el procesamiento del agente
             # En el futuro, esto debería llamar a agentes reales
             agent_result = {
@@ -1842,7 +1898,7 @@ class SuperAgent:
                 "actions_taken": [],
                 "learning_generated": []
             }
-            
+
             # Simular recomendaciones basadas en el tipo de agente
             if agent_type == "soporte":
                 agent_result["recommendations"] = [
@@ -1862,7 +1918,7 @@ class SuperAgent:
                     "Asegurar resolución completa",
                     "Mantener consistencia en la experiencia"
                 ]
-            
+
             # Generar aprendizaje del agente
             agent_result["learning_generated"] = [
                 {
@@ -1872,16 +1928,16 @@ class SuperAgent:
                     "category": conversation.category
                 }
             ]
-            
+
             return agent_result
-            
+
         except Exception as e:
             logger.error(f"❌ Error procesando con agente {agent_type}: {e}")
             return {"error": str(e)}
 
     def _update_global_memory(self, conversation: Conversation,
-                               synthesis: Dict[str, Any],
-                               learning_outcome: Dict[str, Any]):
+                              synthesis: Dict[str, Any],
+                              learning_outcome: Dict[str, Any]):
         """Actualiza la memoria global y guarda aprendizajes en la base de datos"""
         try:
             # Actualizar memoria en memoria
@@ -1898,7 +1954,8 @@ class SuperAgent:
             # Actualizar métricas globales
             self._update_global_metrics(conversation, synthesis)
 
-            logger.info(f"🧠 Memoria global actualizada para conversación: {conversation.id}")
+            logger.info(
+                f"🧠 Memoria global actualizada para conversación: {conversation.id}")
 
         except Exception as e:
             logger.error(f"❌ Error actualizando memoria global: {e}")
@@ -1915,19 +1972,23 @@ class SuperAgent:
                     .where(AgentLearningModel.learning_type == "conversation_learning")
                     .where(AgentLearningModel.content.contains(conversation.id))
                 ).first()
-                
+
                 if existing_learning:
-                    logger.info(f"⚠️ Aprendizaje ya existe para conversación: {conversation.id}, no se duplica")
+                    logger.info(
+                        f"⚠️ Aprendizaje ya existe para conversación: {conversation.id}, no se duplica")
                     return
-                
+
                 # 🆕 Crear registro de aprendizaje más detallado
-                patterns_count = len(learning_outcome.get('patterns_identified', []))
-                agent_optimizations = len(learning_outcome.get('agent_optimizations', []))
-                business_insights = len(learning_outcome.get('business_insights', []))
-                
+                patterns_count = len(
+                    learning_outcome.get('patterns_identified', []))
+                agent_optimizations = len(
+                    learning_outcome.get('agent_optimizations', []))
+                business_insights = len(
+                    learning_outcome.get('business_insights', []))
+
                 # Crear contenido más descriptivo
                 content = f"Super Agente aprendió de conversación {conversation.id[:8]}... - {patterns_count} patrones, {agent_optimizations} optimizaciones, {business_insights} insights"
-                
+
                 # Crear registro de aprendizaje
                 learning = AgentLearningModel(
                     agent_type="super_agent",
@@ -1944,34 +2005,40 @@ class SuperAgent:
                         "learning_timestamp": datetime.now().isoformat()
                     }
                 )
-                
+
                 session.add(learning)
                 session.commit()
-                
-                logger.info(f"💾 Aprendizaje del Super Agente guardado en BD para conversación: {conversation.id}")
-                
+
+                logger.info(
+                    f"💾 Aprendizaje del Super Agente guardado en BD para conversación: {conversation.id}")
+
                 # 🆕 También guardar aprendizajes específicos de tags si existen
                 if conversation.tags:
-                    self._save_tag_learnings_to_db(session, conversation, learning_outcome)
-                
+                    self._save_tag_learnings_to_db(
+                        session, conversation, learning_outcome)
+
                 # 🆕 Guardar aprendizajes de patrones identificados
-                self._save_pattern_learnings_to_db(session, conversation, learning_outcome)
-                
+                self._save_pattern_learnings_to_db(
+                    session, conversation, learning_outcome)
+
                 # 🆕 Guardar insights de negocio
-                self._save_business_insights_to_db(session, conversation, learning_outcome)
-                
+                self._save_business_insights_to_db(
+                    session, conversation, learning_outcome)
+
                 # 🆕 ACTUALIZAR MÉTRICAS DEL SUPER AGENTE EN LA BD
-                self._update_super_agent_metrics(session, conversation, learning_outcome)
-                
+                self._update_super_agent_metrics(
+                    session, conversation, learning_outcome)
+
         except Exception as e:
             logger.error(f"❌ Error guardando aprendizaje en BD: {e}")
             import traceback
             logger.error(f"🔍 Traceback: {traceback.format_exc()}")
-    
+
     def _save_tag_learnings_to_db(self, session: Session, conversation: Conversation, learning_outcome: Dict[str, Any]):
         """Guarda aprendizajes específicos relacionados con tags"""
         try:
-            for tag in conversation.tags[:3]:  # Solo los 3 tags más importantes
+            # Solo los 3 tags más importantes
+            for tag in conversation.tags[:3]:
                 # Crear aprendizaje específico del tag
                 tag_learning = AgentLearningModel(
                     agent_type="super_agent",
@@ -1986,20 +2053,21 @@ class SuperAgent:
                         "learning_timestamp": datetime.now().isoformat()
                     }
                 )
-                
+
                 session.add(tag_learning)
-            
+
             session.commit()
-            logger.info(f"🏷️ Aprendizajes de tags del Super Agente guardados en BD")
-            
+            logger.info(
+                f"🏷️ Aprendizajes de tags del Super Agente guardados en BD")
+
         except Exception as e:
             logger.error(f"❌ Error guardando aprendizajes de tags: {e}")
-    
+
     def _save_pattern_learnings_to_db(self, session: Session, conversation: Conversation, learning_outcome: Dict[str, Any]):
         """Guarda aprendizajes de patrones específicos identificados"""
         try:
             patterns = learning_outcome.get('patterns_identified', [])
-            
+
             for pattern in patterns[:5]:  # Solo los 5 patrones más importantes
                 # Crear aprendizaje específico del patrón
                 pattern_learning = AgentLearningModel(
@@ -2017,21 +2085,22 @@ class SuperAgent:
                         "learning_timestamp": datetime.now().isoformat()
                     }
                 )
-                
+
                 session.add(pattern_learning)
-            
+
             if patterns:
                 session.commit()
-                logger.info(f"🔍 Aprendizajes de patrones del Super Agente guardados en BD: {len(patterns)} patrones")
-            
+                logger.info(
+                    f"🔍 Aprendizajes de patrones del Super Agente guardados en BD: {len(patterns)} patrones")
+
         except Exception as e:
             logger.error(f"❌ Error guardando aprendizajes de patrones: {e}")
-    
+
     def _save_business_insights_to_db(self, session: Session, conversation: Conversation, learning_outcome: Dict[str, Any]):
         """Guarda insights de negocio identificados por el Super Agente"""
         try:
             insights = learning_outcome.get('business_insights', [])
-            
+
             for insight in insights[:3]:  # Solo los 3 insights más importantes
                 # Crear aprendizaje específico del insight
                 insight_learning = AgentLearningModel(
@@ -2048,42 +2117,48 @@ class SuperAgent:
                         "learning_timestamp": datetime.now().isoformat()
                     }
                 )
-                
+
                 session.add(insight_learning)
-            
+
             if insights:
                 session.commit()
-                logger.info(f"💡 Insights de negocio del Super Agente guardados en BD: {len(insights)} insights")
-            
+                logger.info(
+                    f"💡 Insights de negocio del Super Agente guardados en BD: {len(insights)} insights")
+
         except Exception as e:
             logger.error(f"❌ Error guardando insights de negocio: {e}")
-    
+
     def _update_super_agent_metrics(self, session: Session, conversation: Conversation, learning_outcome: Dict[str, Any]):
         """Actualiza las métricas del Super Agente en la base de datos"""
         try:
             if not hasattr(self, 'db_id') or not self.db_id:
-                logger.warning("⚠️ Super Agente no tiene ID de BD, no se pueden actualizar métricas")
+                logger.warning(
+                    "⚠️ Super Agente no tiene ID de BD, no se pueden actualizar métricas")
                 return
-            
+
             # Buscar el registro del Super Agente
             super_agent_record = session.exec(
                 select(SuperAgentModel)
                 .where(SuperAgentModel.id == self.db_id)
             ).first()
-            
+
             if super_agent_record:
                 # Actualizar métricas
                 super_agent_record.total_conversations_processed += 1
-                super_agent_record.total_learnings_generated += len(learning_outcome.get('patterns_identified', []))
-                super_agent_record.total_learnings_generated += len(learning_outcome.get('agent_optimizations', []))
-                super_agent_record.total_learnings_generated += len(learning_outcome.get('business_insights', []))
-                
+                super_agent_record.total_learnings_generated += len(
+                    learning_outcome.get('patterns_identified', []))
+                super_agent_record.total_learnings_generated += len(
+                    learning_outcome.get('agent_optimizations', []))
+                super_agent_record.total_learnings_generated += len(
+                    learning_outcome.get('business_insights', []))
+
                 # Calcular nueva tasa de éxito
                 if hasattr(self, 'aggregated_metrics') and self.aggregated_metrics.get('success_rate'):
                     current_success = super_agent_record.success_rate
                     new_success = learning_outcome.get('confidence_score', 0.8)
-                    super_agent_record.success_rate = (current_success + new_success) / 2
-                
+                    super_agent_record.success_rate = (
+                        current_success + new_success) / 2
+
                 # Actualizar metadatos
                 super_agent_record.metadata.update({
                     "uptime_hours": (datetime.now() - self.creation_date).total_seconds() / 3600,
@@ -2092,17 +2167,20 @@ class SuperAgent:
                     "last_conversation_processed": conversation.id,
                     "last_learning_timestamp": datetime.now().isoformat()
                 })
-                
-                super_agent_record.updated_at = datetime.now()
+
+                super_agent_record.updated_at = datetime.now(COLOMBIA_TZ)
                 session.add(super_agent_record)
                 session.commit()
-                
-                logger.info(f"📊 Métricas del Super Agente actualizadas en BD: {conversation.id}")
+
+                logger.info(
+                    f"📊 Métricas del Super Agente actualizadas en BD: {conversation.id}")
             else:
-                logger.warning("⚠️ No se encontró registro del Super Agente en BD")
-                
+                logger.warning(
+                    "⚠️ No se encontró registro del Super Agente en BD")
+
         except Exception as e:
-            logger.error(f"❌ Error actualizando métricas del Super Agente: {e}")
+            logger.error(
+                f"❌ Error actualizando métricas del Super Agente: {e}")
 
     def _update_metrics_in_db(self, conversation: Conversation, synthesis: Dict[str, Any]):
         """Actualiza métricas en la base de datos"""
@@ -2120,14 +2198,78 @@ class SuperAgent:
                         "overall_sentiment": synthesis.get("overall_sentiment", "neutral")
                     }
                 )
-                
+
                 session.add(metric)
                 session.commit()
-                
-                logger.info(f"📊 Métricas actualizadas en BD para conversación: {conversation.id}")
-                
+
+                logger.info(
+                    f"📊 Métricas actualizadas en BD para conversación: {conversation.id}")
+
         except Exception as e:
             logger.error(f"❌ Error actualizando métricas en BD: {e}")
+
+    def _sync_memory_to_database(self):
+        """Sincroniza la información de la memoria con la base de datos"""
+        try:
+            if not self.db_id:
+                logger.warning("⚠️ No hay ID de BD para sincronizar")
+                return
+
+            with get_session() as session:
+                # Obtener el registro actual
+                super_agent_record = session.exec(
+                    select(SuperAgentModel).where(
+                        SuperAgentModel.id == self.db_id)
+                ).first()
+
+                if not super_agent_record:
+                    logger.error(
+                        "❌ No se encontró el registro del Super Agente en BD")
+                    return
+
+                # Sincronizar campos de memoria
+                super_agent_record.last_learning_cycle = (
+                    self.global_memory["learning_cycles"][-1]["timestamp"]
+                    if self.global_memory["learning_cycles"]
+                    else None
+                )
+
+                super_agent_record.last_optimization = (
+                    self.global_memory["optimization_history"][-1]["timestamp"]
+                    if self.global_memory["optimization_history"]
+                    else None
+                )
+
+                # Actualizar métricas
+                super_agent_record.total_conversations_processed = self.aggregated_metrics[
+                    "total_conversations"]
+                super_agent_record.total_learnings_generated = len(
+                    self.global_memory["learning_cycles"])
+                super_agent_record.success_rate = self.aggregated_metrics["success_rate"]
+
+                # Actualizar metadata
+                super_agent_record.agent_metadata = {
+                    "uptime_hours": (datetime.now() - self.creation_date).total_seconds() / 3600,
+                    "total_learning_cycles": len(self.global_memory["learning_cycles"]),
+                    "total_optimizations": self.optimization_count,
+                    "total_patterns": len(self.global_memory["customer_patterns"]),
+                    "total_trends": len(self.global_memory["conversation_trends"]),
+                    "total_insights": len(self.global_memory["business_insights"]),
+                    "last_sync": datetime.now(COLOMBIA_TZ).isoformat()
+                }
+
+                super_agent_record.updated_at = datetime.now(COLOMBIA_TZ)
+
+                session.add(super_agent_record)
+                session.commit()
+
+                logger.info(
+                    f"💾 Memoria sincronizada con BD - Ciclos: {len(self.global_memory['learning_cycles'])}, Optimizaciones: {self.optimization_count}")
+
+        except Exception as e:
+            logger.error(f"❌ Error sincronizando memoria con BD: {e}")
+            import traceback
+            logger.error(f"🔍 Traceback: {traceback.format_exc()}")
 
 
 # Instancia global del Super Agente

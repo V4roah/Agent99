@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from services.super_agent import super_agent
 from models.conversation import Conversation
+from datetime import datetime
 
 router = APIRouter(prefix="/super-agent", tags=["super-agent"])
 
@@ -210,4 +211,75 @@ async def reset_global_memory():
         raise HTTPException(
             status_code=500,
             detail=f"Error reseteando memoria: {str(e)}"
+        )
+
+
+@router.post("/sync-memory")
+async def sync_memory_to_database():
+    """Sincroniza manualmente la memoria del Super Agente con la base de datos"""
+    try:
+        # Sincronizar memoria con BD
+        super_agent._sync_memory_to_database()
+
+        return {
+            "success": True,
+            "message": "Memoria sincronizada con base de datos",
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error sincronizando memoria: {str(e)}"
+        )
+
+
+@router.get("/debug-sync")
+async def debug_sync_issues():
+    """Endpoint temporal para debuggear problemas de sincronización"""
+    try:
+        debug_info = {
+            "db_id": super_agent.db_id,
+            "has_global_memory": hasattr(super_agent, 'global_memory'),
+            "global_memory_keys": list(super_agent.global_memory.keys()) if hasattr(super_agent, 'global_memory') else [],
+            "learning_cycles_count": len(super_agent.global_memory.get("learning_cycles", [])) if hasattr(super_agent, 'global_memory') else 0,
+            "optimization_history_count": len(super_agent.global_memory.get("optimization_history", [])) if hasattr(super_agent, 'global_memory') else 0,
+            "aggregated_metrics": super_agent.aggregated_metrics if hasattr(super_agent, 'aggregated_metrics') else {},
+            "creation_date": super_agent.creation_date.isoformat() if hasattr(super_agent, 'creation_date') else None,
+            "optimization_count": getattr(super_agent, 'optimization_count', 0)
+        }
+
+        return {
+            "success": True,
+            "debug_info": debug_info
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error obteniendo debug info: {str(e)}"
+        )
+
+
+@router.post("/force-optimization")
+async def force_optimization():
+    """Fuerza la ejecución de una optimización del Super Agente"""
+    try:
+        # Forzar optimización
+        optimization_result = super_agent._run_optimization_cycle()
+
+        # Sincronizar memoria con BD
+        super_agent._sync_memory_to_database()
+
+        return {
+            "success": True,
+            "message": "Optimización forzada ejecutada",
+            "optimization_result": optimization_result,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error forzando optimización: {str(e)}"
         )

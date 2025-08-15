@@ -167,6 +167,121 @@ def init_agent_learnings():
         print(f"❌ Error creando aprendizajes: {e}")
 
 
+def init_super_agent():
+    """Inicializa el Super Agente en la base de datos"""
+    try:
+        from models.agent import SuperAgentModel
+        from services.super_agent import super_agent  # Importar la instancia global
+
+        with Session(engine) as session:
+            # Verificar si ya existe un Super Agente
+            existing_super_agent = session.exec(
+                select(SuperAgentModel).where(
+                    SuperAgentModel.name == "SuperAgent")
+            ).first()
+
+            if existing_super_agent:
+                print(
+                    f"✅ Ya existe el Super Agente: {existing_super_agent.name} v{existing_super_agent.version}")
+                
+                # 🆕 ASIGNAR EL DB_ID A LA INSTANCIA GLOBAL
+                super_agent.db_id = existing_super_agent.id
+                print(f"🔗 DB ID asignado a instancia global: {super_agent.db_id}")
+                
+                return existing_super_agent
+
+            # Crear el Super Agente inicial
+            super_agent_record = SuperAgentModel(
+                name="SuperAgent",
+                version="1.0",
+                status="active",
+                is_learning=False,
+                total_conversations_processed=0,
+                total_learnings_generated=0,
+                success_rate=0.0,
+                learning_threshold=0.7,
+                optimization_frequency_hours=24,
+                created_at=datetime.now(COLOMBIA_TZ),
+                updated_at=datetime.now(COLOMBIA_TZ),
+                agent_metadata={
+                    "description": "Super Agente principal del sistema Agent 99",
+                    "capabilities": ["learning", "optimization", "coordination"],
+                    "created_by": "system"
+                }
+            )
+
+            session.add(super_agent_record)
+            session.commit()
+            session.refresh(super_agent_record)
+
+            # 🆕 ASIGNAR EL DB_ID A LA INSTANCIA GLOBAL
+            super_agent.db_id = super_agent_record.id
+            print(f"🔗 DB ID asignado a instancia global: {super_agent.db_id}")
+
+            print(
+                f"✅ Super Agente creado exitosamente: {super_agent_record.name} v{super_agent_record.version}")
+            return super_agent_record
+
+    except Exception as e:
+        print(f"❌ Error creando Super Agente: {e}")
+        raise
+
+
+def init_tags():
+    """Inicializa tags y categorías de ejemplo"""
+    try:
+        from models import Tag, TagCategory
+
+        with Session(engine) as session:
+            # Verificar si ya existen tags
+            existing_tags = session.exec(select(Tag)).all()
+            if existing_tags:
+                print(f"✅ Ya existen {len(existing_tags)} tags")
+                return
+
+            # Crear categorías de tags
+            categories = [
+                TagCategory(name="producto",
+                            description="Tags relacionados con productos"),
+                TagCategory(name="cliente",
+                            description="Tags relacionados con clientes"),
+                TagCategory(name="conversación",
+                            description="Tags relacionados con conversaciones"),
+                TagCategory(name="aprendizaje",
+                            description="Tags relacionados con aprendizajes")
+            ]
+
+            for category in categories:
+                session.add(category)
+            session.commit()
+
+            # Crear tags de ejemplo
+            tags = [
+                Tag(name="leggings", category="producto",
+                    description="Producto tipo leggings"),
+                Tag(name="negro", category="producto",
+                    description="Color negro"),
+                Tag(name="talla_m", category="producto", description="Talla M"),
+                Tag(name="ropa_deportiva", category="producto",
+                    description="Categoría ropa deportiva"),
+                Tag(name="cliente_frecuente", category="cliente",
+                    description="Cliente que compra regularmente"),
+                Tag(name="consulta_talla", category="conversación",
+                    description="Consulta sobre tallas"),
+                Tag(name="aprendizaje_producto", category="aprendizaje",
+                    description="Aprendizaje sobre productos")
+            ]
+
+            for tag in tags:
+                session.add(tag)
+
+            session.commit()
+            print(f"✅ {len(tags)} tags creados exitosamente")
+
+    except Exception as e:
+        print(f"❌ Error creando tags: {e}")
+
+
 def init_data():
     """Función principal para inicializar todos los datos"""
     print("🚀 Inicializando datos de ejemplo...")
@@ -176,6 +291,8 @@ def init_data():
         init_customer_profiles()
         init_product_inventory()
         init_agent_learnings()
+        init_super_agent()  # 🆕 Inicializar Super Agente
+        init_tags()          # 🆕 Inicializar tags
 
         print("✅ Todos los datos iniciales creados exitosamente")
 
@@ -188,17 +305,21 @@ def get_data_summary():
     """Obtiene un resumen de los datos en la base de datos"""
     try:
         from models import CustomerProfile, ProductInventory, AgentLearning
+        from models.agent import SuperAgentModel
 
         with Session(engine) as session:
             customers_count = len(session.exec(select(CustomerProfile)).all())
             products_count = len(session.exec(select(ProductInventory)).all())
             learnings_count = len(session.exec(select(AgentLearning)).all())
+            super_agent_count = len(session.exec(
+                select(SuperAgentModel)).all())
 
             summary = {
                 "customers": customers_count,
                 "products": products_count,
                 "learnings": learnings_count,
-                "total": customers_count + products_count + learnings_count
+                "super_agents": super_agent_count,
+                "total": customers_count + products_count + learnings_count + super_agent_count
             }
 
             return summary
