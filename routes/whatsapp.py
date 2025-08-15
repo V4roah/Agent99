@@ -1,7 +1,7 @@
 """
 Endpoints para análisis de conversaciones de WhatsApp
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request, Query
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from services.whatsapp_analyzer import whatsapp_analyzer
@@ -12,6 +12,9 @@ from core.db import get_session
 from sqlmodel import Session, select
 from datetime import datetime
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
@@ -389,3 +392,286 @@ async def get_super_agent_learnings():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
+
+
+@router.get("/webhook")
+async def verify_webhook(
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_challenge: str = Query(None, alias="hub.challenge"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token")
+):
+    """Verifica el webhook de WhatsApp Business API"""
+    try:
+        from services.whatsapp_api import whatsapp_api_service
+
+        if hub_mode and hub_verify_token and hub_challenge:
+            # Verificación del webhook
+            verification_result = whatsapp_api_service.verify_webhook(
+                hub_mode, hub_verify_token, hub_challenge)
+
+            if verification_result:
+                logger.info("✅ Webhook de WhatsApp verificado correctamente")
+                return int(verification_result)
+            else:
+                logger.warning("❌ Verificación de webhook fallida")
+                raise HTTPException(
+                    status_code=403, detail="Verification failed")
+        else:
+            # Parámetros de verificación faltantes
+            raise HTTPException(
+                status_code=400, detail="Missing verification parameters")
+
+    except Exception as e:
+        logger.error(f"❌ Error verificando webhook: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/webhook")
+async def whatsapp_webhook(request: Request):
+    """Webhook para recibir mensajes de WhatsApp Business API"""
+    try:
+        # Obtener el cuerpo del request
+        body = await request.json()
+
+        # Verificar si es un mensaje de WhatsApp
+        if "entry" in body and "changes" in body["entry"][0]:
+            changes = body["entry"][0]["changes"]
+
+            for change in changes:
+                if change.get("value") and "messages" in change["value"]:
+                    messages = change["value"]["messages"]
+
+                    for message in messages:
+                        # Procesar cada mensaje
+                        await process_whatsapp_message(message)
+
+        return {"status": "ok"}
+
+    except Exception as e:
+        logger.error(f"❌ Error en webhook de WhatsApp: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def process_whatsapp_message(message: dict):
+    """Procesa un mensaje individual de WhatsApp"""
+    try:
+        # Extraer información del mensaje
+        phone_number = message.get("from")
+        message_text = message.get("text", {}).get("body", "")
+        message_id = message.get("id")
+        timestamp = message.get("timestamp")
+
+        logger.info(
+            f"📱 Mensaje WhatsApp recibido: {phone_number} - {message_text[:50]}...")
+
+        # Crear objeto de conversación
+        conversation = Conversation(
+            id=str(uuid.uuid4()),
+            customer_id=phone_number,  # Usar número de teléfono como ID
+            content=message_text,
+            source="whatsapp",
+            timestamp=datetime.fromtimestamp(int(timestamp)),
+            category=None,  # Se determinará automáticamente
+            sentiment=None,  # Se determinará automáticamente
+            tags=[]
+        )
+
+        # Procesar con el SuperAgente
+        learning_outcome = super_agent.process_conversation(conversation)
+
+        # Generar respuesta automática
+        response = await generate_whatsapp_response(conversation, learning_outcome)
+
+        # Enviar respuesta por WhatsApp
+        from services.whatsapp_api import whatsapp_api_service
+        whatsapp_api_service.send_text_message(phone_number, response)
+
+        logger.info(f"✅ Mensaje procesado y respondido: {message_id}")
+
+    except Exception as e:
+        logger.error(f"❌ Error procesando mensaje WhatsApp: {e}")
+
+
+async def generate_whatsapp_response(conversation: Conversation, learning_outcome: dict) -> str:
+    """Genera una respuesta automática para WhatsApp basada en el aprendizaje"""
+    try:
+        # Determinar el tipo de respuesta basándose en la categoría
+        category = conversation.category or "general"
+
+        if category == "ventas":
+            return "¡Hola! Gracias por tu consulta sobre ventas. Nuestro equipo especializado te atenderá en breve. 🛍️"
+        elif category == "soporte":
+            return "¡Hola! Entiendo que necesitas soporte técnico. Nuestro equipo de asistencia te ayudará pronto. 🔧"
+        elif category == "reclamo":
+            return "¡Hola! Lamento que hayas tenido una experiencia negativa. Nuestro equipo de atención al cliente se pondrá en contacto contigo. 📞"
+        else:
+            return "¡Hola! Gracias por contactarnos. Nuestro equipo te atenderá en breve. 😊"
+
+    except Exception as e:
+        logger.error(f"❌ Error generando respuesta WhatsApp: {e}")
+        return "¡Hola! Gracias por contactarnos. Te responderemos pronto. 😊"
+
+
+async def send_whatsapp_message(phone_number: str, message: str):
+    """Envía un mensaje por WhatsApp Business API"""
+    try:
+        # Aquí iría la lógica para enviar por WhatsApp Business API
+        # Por ahora, solo logueamos
+        logger.info(
+            f"📤 Enviando mensaje WhatsApp a {phone_number}: {message[:50]}...")
+
+        # TODO: Implementar envío real por WhatsApp Business API
+        # Ejemplo de implementación:
+        # whatsapp_api.send_message(phone_number, message)
+
+    except Exception as e:
+        logger.error(f"❌ Error enviando mensaje WhatsApp: {e}")
+
+
+@router.post("/send-message")
+async def send_whatsapp_message_endpoint(
+    phone_number: str,
+    message: str
+):
+    """Envía un mensaje de WhatsApp manualmente"""
+    try:
+        from services.whatsapp_api import whatsapp_api_service
+
+        success = whatsapp_api_service.send_text_message(phone_number, message)
+
+        if success:
+            return {
+                "success": True,
+                "message": "Mensaje enviado exitosamente",
+                "phone_number": phone_number,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Error enviando mensaje WhatsApp"
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Error enviando mensaje: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/send-template")
+async def send_template_message_endpoint(
+    phone_number: str,
+    template_name: str,
+    language_code: str = "es",
+    components: list = None
+):
+    """Envía un mensaje de plantilla por WhatsApp"""
+    try:
+        from services.whatsapp_api import whatsapp_api_service
+
+        success = whatsapp_api_service.send_template_message(
+            phone_number, template_name, language_code, components
+        )
+
+        if success:
+            return {
+                "success": True,
+                "message": "Plantilla enviada exitosamente",
+                "phone_number": phone_number,
+                "template": template_name,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Error enviando plantilla WhatsApp"
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Error enviando plantilla: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/send-interactive")
+async def send_interactive_message_endpoint(
+    phone_number: str,
+    message: str,
+    buttons: list
+):
+    """Envía un mensaje interactivo con botones por WhatsApp"""
+    try:
+        from services.whatsapp_api import whatsapp_api_service
+
+        success = whatsapp_api_service.send_interactive_message(
+            phone_number, message, buttons
+        )
+
+        if success:
+            return {
+                "success": True,
+                "message": "Mensaje interactivo enviado exitosamente",
+                "phone_number": phone_number,
+                "buttons": buttons,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Error enviando mensaje interactivo WhatsApp"
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Error enviando mensaje interactivo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/message-status/{message_id}")
+async def get_message_status_endpoint(message_id: str):
+    """Obtiene el estado de un mensaje enviado"""
+    try:
+        from services.whatsapp_api import whatsapp_api_service
+
+        status = whatsapp_api_service.get_message_status(message_id)
+
+        if status:
+            return {
+                "success": True,
+                "message_id": message_id,
+                "status": status,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="Estado del mensaje no encontrado"
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo estado del mensaje: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/service-status")
+async def get_whatsapp_service_status():
+    """Obtiene el estado del servicio de WhatsApp"""
+    try:
+        from services.whatsapp_api import whatsapp_api_service
+
+        # Verificar configuración
+        config_status = {
+            "base_url": whatsapp_api_service.base_url,
+            "phone_number_id": bool(whatsapp_api_service.phone_number_id),
+            "access_token": bool(whatsapp_api_service.access_token),
+            "verify_token": whatsapp_api_service.verify_token
+        }
+
+        return {
+            "success": True,
+            "service": "WhatsApp Business API",
+            "status": "active" if all(config_status.values()) else "incomplete_config",
+            "configuration": config_status,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo estado del servicio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

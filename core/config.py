@@ -79,6 +79,26 @@ class Settings(BaseSettings):
     )
 
     # ============================================================================
+    # CONFIGURACIÓN DE WHATSAPP BUSINESS API
+    # ============================================================================
+    WHATSAPP_API_URL: str = Field(
+        default="https://graph.facebook.com/v18.0",
+        description="URL base de la API de Facebook Graph (WhatsApp Business API)"
+    )
+    WHATSAPP_PHONE_NUMBER_ID: str = Field(
+        default="",
+        description="ID del número de teléfono de WhatsApp Business"
+    )
+    WHATSAPP_ACCESS_TOKEN: str = Field(
+        default="",
+        description="Token de acceso permanente para WhatsApp Business API"
+    )
+    WHATSAPP_VERIFY_TOKEN: str = Field(
+        default="agent99_verify_token",
+        description="Token de verificación del webhook de WhatsApp"
+    )
+
+    # ============================================================================
     # CONFIGURACIÓN DE AGENTES
     # ============================================================================
     ENABLE_LEARNING: bool = Field(
